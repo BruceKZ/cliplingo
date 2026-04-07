@@ -277,6 +277,11 @@ async fn translate_text(input: TranslateTextInput) -> Result<TranslationExecutio
         .execute(resolved_provider, config, input.clone())
         .await
     {
+<<<<<<< HEAD
+        Ok(output) => Ok(output),
+        Err(error) => Ok(TranslationExecutionOutput::from_safe_error(&input, &error)),
+    }
+=======
         Ok(output) => {
             let config = config_service().load().map_err(|error| error.to_string())?;
             let _ = history_repository().append_translation(&config.history, &output);
@@ -327,6 +332,7 @@ async fn clear_translation_history() -> Result<(), String> {
     history_repository()
         .clear()
         .map_err(|error| error.to_string())
+>>>>>>> origin/develop
 }
 
 #[tauri::command]

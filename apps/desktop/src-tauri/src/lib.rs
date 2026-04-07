@@ -7,6 +7,7 @@ use services::{
     clipboard::{read_clipboard_text, read_clipboard_text_with_limits, ClipboardLimits},
     config::{ConfigService, ProviderSecretStatus},
     language::{LanguageAnalysis, LanguageDetectionService, LanguageRouter},
+    translation::{TranslateTextInput, TranslationExecutionOutput, TranslationOrchestrator},
     trigger::{
         dispatch_translation_trigger, initialize_trigger_services, TriggerDispatchPayload,
         TriggerSource,
@@ -255,6 +256,20 @@ async fn analyze_language_routing(
 }
 
 #[tauri::command]
+async fn translate_text(input: TranslateTextInput) -> Result<TranslationExecutionOutput, String> {
+    let config = config_service().load().map_err(|error| error.to_string())?;
+    let resolved_provider = config_service()
+        .resolve_provider_config(input.provider_id.as_deref())
+        .map_err(|error| error.to_string())?;
+    let orchestrator = TranslationOrchestrator::default();
+
+    orchestrator
+        .execute(resolved_provider, config, input)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn trigger_translation_from_fallback_shortcut(
     app: AppHandle,
 ) -> Result<TriggerDispatchPayload, String> {
@@ -338,6 +353,7 @@ pub fn run() {
             get_provider_api_key_status,
             delete_provider_api_key,
             analyze_language_routing,
+            translate_text,
             trigger_translation_from_fallback_shortcut
         ])
         .run(tauri::generate_context!())

@@ -12,6 +12,12 @@ use crate::{
     storage::{fs_paths::ConfigPathProvider, secure_storage::SecretStore},
 };
 
+#[derive(Debug, Clone)]
+pub struct ResolvedProviderConfig {
+    pub provider: ProviderConfigRecord,
+    pub api_key: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderSecretStatus {
@@ -220,6 +226,35 @@ where
             provider_id: provider_id.to_string(),
             has_secret: false,
         })
+    }
+
+    pub fn resolve_provider_config(
+        &self,
+        provider_id: Option<&str>,
+    ) -> Result<ResolvedProviderConfig, ConfigServiceError> {
+        let config = self.load()?;
+        let resolved_provider_id = provider_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .or_else(|| config.active_provider_id.clone())
+            .ok_or_else(|| ConfigServiceError::ProviderNotFound("active provider".to_string()))?;
+
+        let provider = config
+            .providers
+            .iter()
+            .find(|provider| provider.id == resolved_provider_id)
+            .cloned()
+            .ok_or_else(|| ConfigServiceError::ProviderNotFound(resolved_provider_id.clone()))?;
+
+        let api_key = provider
+            .api_key_ref
+            .as_deref()
+            .map(|secret_ref| self.secret_store.get_secret(secret_ref))
+            .transpose()?
+            .flatten();
+
+        Ok(ResolvedProviderConfig { provider, api_key })
     }
 
     fn load_from_path(&self, path: &Path) -> Result<AppConfigRecord, ConfigServiceError> {

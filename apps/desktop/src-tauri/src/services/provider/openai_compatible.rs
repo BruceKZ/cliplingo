@@ -899,4 +899,74 @@ mod tests {
             .unwrap_or_default()
             .contains("unauthorized"));
     }
+
+    #[tokio::test]
+    async fn translate_surfaces_request_failures_without_network() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind temporary port");
+        let addr = listener.local_addr().expect("local addr");
+        drop(listener);
+
+        let provider = OpenAiCompatibleProvider::try_from_config(
+            provider_config(format!("http://{addr}")),
+            Some("sk-test".to_string()),
+        )
+        .expect("provider");
+
+        let error = provider
+            .translate(ProviderRequest {
+                messages: vec![ChatMessage {
+                    role: ChatRole::User,
+                    content: "Hello".to_string(),
+                }],
+                timeout_secs: Some(3),
+                ..ProviderRequest::default()
+            })
+            .await
+            .expect_err("request failure should surface");
+
+        assert_eq!(error.code, ProviderErrorCode::RequestFailed);
+    }
+
+    #[tokio::test]
+    async fn translate_surfaces_timeout_failures() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+        let addr = listener.local_addr().expect("local addr");
+
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request).expect("read request");
+            thread::sleep(std::time::Duration::from_secs(4));
+            let body = r#"{"model":"gpt-4o-mini","choices":[{"message":{"content":"late"}}]}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            let _ = stream.write_all(response.as_bytes());
+        });
+
+        let provider = OpenAiCompatibleProvider::try_from_config(
+            provider_config(format!("http://{addr}")),
+            Some("sk-test".to_string()),
+        )
+        .expect("provider");
+
+        let error = provider
+            .translate(ProviderRequest {
+                messages: vec![ChatMessage {
+                    role: ChatRole::User,
+                    content: "Hello".to_string(),
+                }],
+                timeout_secs: Some(3),
+                ..ProviderRequest::default()
+            })
+            .await
+            .expect_err("timeout failure should surface");
+
+        handle.join().expect("server thread");
+
+        assert_eq!(error.code, ProviderErrorCode::RequestFailed);
+        assert!(!error.details.as_deref().unwrap_or_default().is_empty());
+    }
 }

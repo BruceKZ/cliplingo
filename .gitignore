@@ -1,0 +1,31 @@
+# Node / frontend
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Rust / Tauri
+target/
+**/*.rs.bk
+src-tauri/target/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Tauri generated
+src-tauri/gen/

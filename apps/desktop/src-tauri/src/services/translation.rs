@@ -69,6 +69,37 @@ pub struct TranslationExecutionOutput {
     pub error: Option<TranslationErrorOutput>,
 }
 
+impl TranslationExecutionOutput {
+    pub fn from_safe_error(
+        input: &TranslateTextInput,
+        error: &TranslationOrchestratorError,
+    ) -> Self {
+        Self {
+            request_id: next_request_id(),
+            source_text: normalize_clipboard_text(&input.text),
+            source_language: input
+                .source_language
+                .as_deref()
+                .and_then(normalized_language_code)
+                .unwrap_or_else(|| "und".to_string()),
+            target_languages: input
+                .target_languages
+                .clone()
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|value| normalized_language_code(&value))
+                .collect(),
+            translations: Vec::new(),
+            provider_id: input.provider_id.clone().unwrap_or_default(),
+            provider_name: String::new(),
+            model: String::new(),
+            latency_ms: 0,
+            fallback_used: false,
+            error: Some(error.to_safe_output()),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TranslationOrchestrator {
     language_router: LanguageRouter,
@@ -653,5 +684,30 @@ mod tests {
         assert_eq!(safe.code, "provider_request_failed");
         assert_eq!(safe.message, "Translation failed. Please try again.");
         assert!(safe.retryable);
+    }
+
+    #[test]
+    fn structured_safe_error_output_is_available_for_ui_display() {
+        let input = TranslateTextInput {
+            text: "Hello".to_string(),
+            provider_id: Some("provider-default".to_string()),
+            source_language: Some("en".to_string()),
+            target_languages: Some(vec!["zh-CN".to_string()]),
+            user_rules: None,
+        };
+
+        let output = TranslationExecutionOutput::from_safe_error(
+            &input,
+            &TranslationOrchestratorError::InvalidResponse("bad payload".to_string()),
+        );
+
+        assert!(output.translations.is_empty());
+        assert_eq!(output.source_text, "Hello");
+        assert_eq!(output.source_language, "en");
+        assert_eq!(output.target_languages, vec!["zh-CN"]);
+        assert_eq!(
+            output.error.expect("safe error").message,
+            "The translation response could not be parsed safely."
+        );
     }
 }

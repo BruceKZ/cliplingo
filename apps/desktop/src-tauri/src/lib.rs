@@ -6,7 +6,9 @@ use models::config::{AppConfigRecord, ProviderConfigRecord};
 use services::{
     clipboard::{read_clipboard_text, read_clipboard_text_with_limits, ClipboardLimits},
     config::{ConfigService, ProviderSecretStatus},
+    history::{HistoryEntryRecord, HistoryRepository},
     language::{LanguageAnalysis, LanguageDetectionService, LanguageRouter},
+    logging::{LogEvent, LoggingService},
     translation::{TranslateTextInput, TranslationExecutionOutput, TranslationOrchestrator},
     trigger::{
         dispatch_translation_trigger, initialize_trigger_services, TriggerDispatchPayload,
@@ -34,6 +36,14 @@ fn app_url() -> WebviewUrl {
 
 fn config_service() -> ConfigService<ProjectPathProvider, KeyringSecretStore> {
     ConfigService::new(ProjectPathProvider, KeyringSecretStore)
+}
+
+fn history_repository() -> HistoryRepository<ProjectPathProvider> {
+    HistoryRepository::new(ProjectPathProvider)
+}
+
+fn logging_service() -> LoggingService<ProjectPathProvider> {
+    LoggingService::new(ProjectPathProvider)
 }
 
 fn bind_hide_on_close(window: &WebviewWindow) {
@@ -263,9 +273,59 @@ async fn translate_text(input: TranslateTextInput) -> Result<TranslationExecutio
         .map_err(|error| error.to_string())?;
     let orchestrator = TranslationOrchestrator::default();
 
-    orchestrator
-        .execute(resolved_provider, config, input)
+    match orchestrator
+        .execute(resolved_provider, config, input.clone())
         .await
+    {
+        Ok(output) => {
+            let config = config_service().load().map_err(|error| error.to_string())?;
+            let _ = history_repository().append_translation(&config.history, &output);
+            let _ = logging_service().log(
+                &config.debug,
+                LogEvent {
+                    level: "info",
+                    event: "translation-succeeded",
+                    message: format!(
+                        "provider={} targets={}",
+                        output.provider_id,
+                        output.target_languages.join(",")
+                    ),
+                    text_preview: Some(output.source_text.clone()),
+                },
+            );
+
+            Ok(output)
+        }
+        Err(error) => {
+            let safe_output = TranslationExecutionOutput::from_safe_error(&input, &error);
+            if let Ok(config) = config_service().load() {
+                let _ = logging_service().log(
+                    &config.debug,
+                    LogEvent {
+                        level: "error",
+                        event: "translation-failed",
+                        message: error.to_string(),
+                        text_preview: Some(safe_output.source_text.clone()),
+                    },
+                );
+            }
+
+            Ok(safe_output)
+        }
+    }
+}
+
+#[tauri::command]
+async fn list_translation_history() -> Result<Vec<HistoryEntryRecord>, String> {
+    history_repository()
+        .list()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn clear_translation_history() -> Result<(), String> {
+    history_repository()
+        .clear()
         .map_err(|error| error.to_string())
 }
 
@@ -354,6 +414,8 @@ pub fn run() {
             delete_provider_api_key,
             analyze_language_routing,
             translate_text,
+            list_translation_history,
+            clear_translation_history,
             trigger_translation_from_fallback_shortcut
         ])
         .run(tauri::generate_context!())

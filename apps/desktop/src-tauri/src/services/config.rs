@@ -326,6 +326,14 @@ mod tests {
         fn config_path(&self) -> Result<PathBuf, ConfigServiceError> {
             Ok(self.path.clone())
         }
+
+        fn history_path(&self) -> Result<PathBuf, ConfigServiceError> {
+            Ok(self.path.with_file_name("history.json"))
+        }
+
+        fn log_path(&self) -> Result<PathBuf, ConfigServiceError> {
+            Ok(self.path.with_file_name("app.log"))
+        }
     }
 
     #[derive(Clone, Default)]

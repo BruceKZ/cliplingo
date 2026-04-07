@@ -1,7 +1,6 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-
-type ThemeMode = "system" | "light" | "dark";
+import type { ThemeMode } from "@/types";
 
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 

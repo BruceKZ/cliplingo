@@ -6,6 +6,10 @@ use models::config::{AppConfigRecord, ProviderConfigRecord};
 use services::{
     clipboard::{read_clipboard_text, read_clipboard_text_with_limits, ClipboardLimits},
     config::{ConfigService, ProviderSecretStatus},
+    trigger::{
+        dispatch_translation_trigger, initialize_trigger_services, TriggerDispatchPayload,
+        TriggerSource,
+    },
 };
 use storage::{fs_paths::ProjectPathProvider, secure_storage::KeyringSecretStore};
 use tauri::{
@@ -229,6 +233,14 @@ async fn delete_provider_api_key(provider_id: String) -> Result<ProviderSecretSt
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+async fn trigger_translation_from_fallback_shortcut(
+    app: AppHandle,
+) -> Result<TriggerDispatchPayload, String> {
+    dispatch_translation_trigger(&app, TriggerSource::FallbackShortcut)
+        .map_err(|error| error.to_string())
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let show_main = MenuItem::with_id(
         app,
@@ -273,6 +285,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let handle = app.handle().clone();
+            let config = config_service().load()?;
             let main_window = if let Some(window) = handle.get_webview_window(MAIN_WINDOW_LABEL) {
                 window
             } else {
@@ -281,6 +294,11 @@ pub fn run() {
             bind_hide_on_close(&main_window);
 
             build_tray(&handle)?;
+            initialize_trigger_services(
+                &handle,
+                &config.trigger.fallback_shortcut,
+                config.trigger.double_copy_window_ms,
+            );
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -297,7 +315,8 @@ pub fn run() {
             set_active_provider,
             set_provider_api_key,
             get_provider_api_key_status,
-            delete_provider_api_key
+            delete_provider_api_key,
+            trigger_translation_from_fallback_shortcut
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

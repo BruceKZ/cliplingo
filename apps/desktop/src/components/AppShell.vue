@@ -46,7 +46,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useUiStore } from "@/stores/ui";
 
@@ -62,8 +61,4 @@ function toggleTheme() {
   const nextTheme = uiStore.resolvedTheme === "dark" ? "light" : "dark";
   uiStore.applyTheme(nextTheme);
 }
-
-onMounted(() => {
-  uiStore.applyTheme(uiStore.theme);
-});
 </script>

@@ -117,7 +117,13 @@ pub fn initialize_trigger_services(app: &AppHandle, shortcut: &str, double_copy_
         }
     }
 
-    spawn_double_copy_listener(app.clone(), double_copy_window_ms);
+    if should_enable_double_copy_listener() {
+        spawn_double_copy_listener(app.clone(), double_copy_window_ms);
+    } else {
+        eprintln!(
+            "double-copy listener disabled on macOS release builds; use the fallback shortcut instead"
+        );
+    }
 }
 
 pub fn dispatch_translation_trigger(
@@ -237,6 +243,22 @@ fn normalized_window_ms(value: u64) -> u64 {
     value.clamp(250, 800)
 }
 
+fn should_enable_double_copy_listener() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        cfg!(debug_assertions)
+            || matches!(
+                std::env::var("CLIPLINGO_ENABLE_MACOS_DOUBLE_COPY").as_deref(),
+                Ok("1" | "true" | "TRUE" | "yes" | "YES")
+            )
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 fn parse_shortcut(input: &str) -> Option<Shortcut> {
     let trimmed = input.trim();
     if trimmed.eq_ignore_ascii_case("CmdOrCtrl+Shift+Y") {
@@ -299,5 +321,14 @@ mod tests {
         assert_eq!(normalized_window_ms(100), 250);
         assert_eq!(normalized_window_ms(450), 450);
         assert_eq!(normalized_window_ms(900), 800);
+    }
+
+    #[test]
+    fn double_copy_listener_default_matches_platform_policy() {
+        #[cfg(target_os = "macos")]
+        assert_eq!(should_enable_double_copy_listener(), cfg!(debug_assertions));
+
+        #[cfg(not(target_os = "macos"))]
+        assert!(should_enable_double_copy_listener());
     }
 }

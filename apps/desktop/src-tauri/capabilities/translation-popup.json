@@ -3,5 +3,10 @@
   "identifier": "translation-popup-window",
   "description": "Capability for the translation popup window",
   "windows": ["translation-popup"],
-  "permissions": ["core:default", "core:window:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "opener:default",
+    "clipboard-manager:allow-read-text"
+  ]
 }

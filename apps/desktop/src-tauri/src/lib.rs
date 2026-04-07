@@ -1,3 +1,6 @@
+mod services;
+
+use services::clipboard::{read_clipboard_text, read_clipboard_text_with_limits, ClipboardLimits};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -92,9 +95,7 @@ fn present_main_window(app: &AppHandle) -> tauri::Result<()> {
 }
 
 fn present_settings_window(app: &AppHandle) -> tauri::Result<()> {
-    let window = ensure_window(app, SETTINGS_WINDOW_LABEL, || {
-        create_settings_window(app)
-    })?;
+    let window = ensure_window(app, SETTINGS_WINDOW_LABEL, || create_settings_window(app))?;
     reveal_window(&window)
 }
 
@@ -133,7 +134,9 @@ async fn hide_window(app: AppHandle, label: String) -> tauri::Result<()> {
 
 #[tauri::command]
 async fn toggle_main_window(app: AppHandle) -> tauri::Result<()> {
-    let window = ensure_window(&app, MAIN_WINDOW_LABEL, || Err(tauri::Error::WindowNotFound))?;
+    let window = ensure_window(&app, MAIN_WINDOW_LABEL, || {
+        Err(tauri::Error::WindowNotFound)
+    })?;
 
     if window.is_visible()? {
         window.hide()?;
@@ -144,8 +147,28 @@ async fn toggle_main_window(app: AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+#[tauri::command]
+async fn read_system_clipboard(
+    app: AppHandle,
+    max_chars: Option<usize>,
+) -> Result<services::clipboard::ClipboardText, String> {
+    match max_chars {
+        Some(max_chars) => {
+            let limits = ClipboardLimits::new(max_chars).map_err(|error| error.to_string())?;
+            read_clipboard_text_with_limits(app, limits).map_err(|error| error.to_string())
+        }
+        None => read_clipboard_text(app).map_err(|error| error.to_string()),
+    }
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let show_main = MenuItem::with_id(app, TRAY_SHOW_MAIN_ID, "Show Main Window", true, None::<&str>)?;
+    let show_main = MenuItem::with_id(
+        app,
+        TRAY_SHOW_MAIN_ID,
+        "Show Main Window",
+        true,
+        None::<&str>,
+    )?;
     let show_settings =
         MenuItem::with_id(app, TRAY_SHOW_SETTINGS_ID, "Settings", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
@@ -179,6 +202,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let main_window = if let Some(window) = handle.get_webview_window(MAIN_WINDOW_LABEL) {
@@ -196,7 +220,8 @@ pub fn run() {
             show_settings_window,
             show_translation_popup,
             hide_window,
-            toggle_main_window
+            toggle_main_window,
+            read_system_clipboard
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

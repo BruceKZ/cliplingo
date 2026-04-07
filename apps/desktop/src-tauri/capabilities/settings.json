@@ -3,5 +3,10 @@
   "identifier": "settings-window",
   "description": "Capability for the settings window",
   "windows": ["settings"],
-  "permissions": ["core:default", "core:window:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "opener:default",
+    "clipboard-manager:allow-read-text"
+  ]
 }

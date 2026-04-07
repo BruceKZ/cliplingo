@@ -6,7 +6,7 @@ pub const DEFAULT_HISTORY_LIMIT: u32 = 100;
 pub const DEFAULT_MAX_TOKENS: u32 = 4_096;
 pub const DEFAULT_PROVIDER_PATH: &str = "/chat/completions";
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum ThemeMode {
     #[default]
@@ -15,14 +15,14 @@ pub enum ThemeMode {
     Dark,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProviderKind {
     #[default]
     OpenAiCompatible,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthScheme {
     #[default]

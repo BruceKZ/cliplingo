@@ -268,13 +268,32 @@ impl TranslationOrchestratorError {
                     message: "The selected provider is not configured correctly.".to_string(),
                     retryable: false,
                 },
-                ProviderErrorCode::RequestBuildFailed
-                | ProviderErrorCode::RequestFailed
-                | ProviderErrorCode::HttpStatus
-                | ProviderErrorCode::ResponseParseFailed
-                | ProviderErrorCode::EmptyResponse => TranslationErrorOutput {
+                ProviderErrorCode::RequestBuildFailed => TranslationErrorOutput {
                     code: "provider_request_failed".to_string(),
-                    message: "Translation failed. Please try again.".to_string(),
+                    message: "The provider request could not be created.".to_string(),
+                    retryable: false,
+                },
+                ProviderErrorCode::RequestFailed => TranslationErrorOutput {
+                    code: "provider_request_failed".to_string(),
+                    message: safe_request_failure_message(error),
+                    retryable: true,
+                },
+                ProviderErrorCode::HttpStatus => TranslationErrorOutput {
+                    code: "provider_request_failed".to_string(),
+                    message: safe_http_status_message(error.status),
+                    retryable: matches!(
+                        error.status,
+                        Some(408) | Some(409) | Some(425) | Some(429) | Some(500..=599)
+                    ),
+                },
+                ProviderErrorCode::ResponseParseFailed => TranslationErrorOutput {
+                    code: "provider_response_invalid".to_string(),
+                    message: "The provider returned data in an unexpected format.".to_string(),
+                    retryable: true,
+                },
+                ProviderErrorCode::EmptyResponse => TranslationErrorOutput {
+                    code: "provider_response_empty".to_string(),
+                    message: "The provider returned an empty result.".to_string(),
                     retryable: true,
                 },
             },
@@ -284,6 +303,48 @@ impl TranslationOrchestratorError {
                 retryable: true,
             },
         }
+    }
+}
+
+fn safe_request_failure_message(error: &ProviderError) -> String {
+    let details = error.details.as_deref().unwrap_or_default().to_ascii_lowercase();
+
+    if details.contains("timed out") {
+        return "The provider request timed out. Please try again.".to_string();
+    }
+
+    if details.contains("dns")
+        || details.contains("failed to lookup address")
+        || details.contains("name or service not known")
+    {
+        return "The provider host could not be reached. Check the base URL and network connection."
+            .to_string();
+    }
+
+    if details.contains("connection refused")
+        || details.contains("connection reset")
+        || details.contains("broken pipe")
+    {
+        return "The provider connection failed. Check the service and try again.".to_string();
+    }
+
+    "The provider request failed. Please try again.".to_string()
+}
+
+fn safe_http_status_message(status: Option<u16>) -> String {
+    match status {
+        Some(400) => "The provider rejected the request. Check the provider settings.".to_string(),
+        Some(401) => "The provider rejected the API key. Check the saved key.".to_string(),
+        Some(403) => "The provider denied access to this request.".to_string(),
+        Some(404) => "The provider endpoint was not found. Check the base URL and path.".to_string(),
+        Some(408) => "The provider timed out before sending a response.".to_string(),
+        Some(409) => "The provider could not complete the request right now. Try again.".to_string(),
+        Some(422) => "The provider rejected the request content. Check the model and parameters."
+            .to_string(),
+        Some(429) => "The provider rate limit was reached. Try again later.".to_string(),
+        Some(500..=599) => "The provider is temporarily unavailable. Try again later.".to_string(),
+        Some(_) => "The provider returned an unexpected response.".to_string(),
+        None => "The provider request failed. Please try again.".to_string(),
     }
 }
 
@@ -677,12 +738,47 @@ mod tests {
                 ProviderErrorCode::HttpStatus,
                 "provider returned HTTP 500",
             )
+            .with_status(500)
             .with_details("{\"error\":\"stack trace\"}"),
         );
 
         let safe = error.to_safe_output();
         assert_eq!(safe.code, "provider_request_failed");
-        assert_eq!(safe.message, "Translation failed. Please try again.");
+        assert_eq!(safe.message, "The provider is temporarily unavailable. Try again later.");
+        assert!(safe.retryable);
+    }
+
+    #[test]
+    fn provider_http_401_is_mapped_to_api_key_message() {
+        let error = TranslationOrchestratorError::Provider(
+            ProviderError::new(
+                "provider-default",
+                ProviderErrorCode::HttpStatus,
+                "provider returned HTTP 401",
+            )
+            .with_status(401),
+        );
+
+        let safe = error.to_safe_output();
+        assert_eq!(safe.code, "provider_request_failed");
+        assert_eq!(safe.message, "The provider rejected the API key. Check the saved key.");
+        assert!(!safe.retryable);
+    }
+
+    #[test]
+    fn provider_timeout_is_mapped_to_timeout_message() {
+        let error = TranslationOrchestratorError::Provider(
+            ProviderError::new(
+                "provider-default",
+                ProviderErrorCode::RequestFailed,
+                "request failed",
+            )
+            .with_details("operation timed out"),
+        );
+
+        let safe = error.to_safe_output();
+        assert_eq!(safe.code, "provider_request_failed");
+        assert_eq!(safe.message, "The provider request timed out. Please try again.");
         assert!(safe.retryable);
     }
 

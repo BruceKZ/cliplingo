@@ -215,6 +215,6 @@ const statusText = computed(() => {
   if (!providersStore.statusLine) {
     return "";
   }
-  return `${t("settings.statusAt")}: ${new Date(providersStore.statusLine.at).toLocaleTimeString()} · ${providersStore.statusLine.message}`;
+  return `${t("settings.statusAt")}: ${new Date(providersStore.statusLine.at).toLocaleTimeString()} - ${providersStore.statusLine.message}`;
 });
 </script>

@@ -323,7 +323,7 @@ export const useProvidersStore = defineStore("providers", () => {
 
     providers.push(duplicate);
     selectedProviderId.value = duplicate.id;
-    setStatus(statusLine, "success", `Duplicated provider ${existing.id}.`);
+    setStatus(statusLine, "success", "Provider duplicated.");
   }
 
   async function removeProvider(providerId: string) {
@@ -349,7 +349,7 @@ export const useProvidersStore = defineStore("providers", () => {
     });
     applyDirectory(directory, { selectedId: nextSelection });
     await Promise.all(providers.map((entry) => refreshSecretStatus(entry.id)));
-    setStatus(statusLine, "success", `Removed provider ${providerId}.`);
+    setStatus(statusLine, "success", "Provider removed.");
   }
 
   function selectProvider(providerId: string) {
@@ -364,7 +364,7 @@ export const useProvidersStore = defineStore("providers", () => {
     });
     applyDirectory(directory, { selectedId: providerId });
     await Promise.all(providers.map((provider) => refreshSecretStatus(provider.id)));
-    setStatus(statusLine, "success", `Active provider set to ${providerId}.`);
+    setStatus(statusLine, "success", "Active provider updated.");
   }
 
   function addProviderHeader(providerId: string) {
@@ -479,11 +479,11 @@ export const useProvidersStore = defineStore("providers", () => {
       }
 
       persistState.value = "saved";
-      setStatus(statusLine, "success", `Saved provider ${nextId}.`);
+      setStatus(statusLine, "success", "Provider saved.");
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : String(cause);
       persistState.value = "error";
-      setStatus(statusLine, "error", `Failed to save: ${error.value}`);
+      setStatus(statusLine, "error", error.value);
       throw cause;
     }
   }
@@ -513,12 +513,12 @@ export const useProvidersStore = defineStore("providers", () => {
       }
 
       testState.value = "success";
-      testMessage.value = `${result.providerName} responded in ${result.latencyMs} ms.`;
-      setStatus(statusLine, "success", "Provider test succeeded.");
+      testMessage.value = `Test succeeded in ${result.latencyMs} ms.`;
+      setStatus(statusLine, "success", testMessage.value);
     } catch (cause) {
       testState.value = "error";
       testMessage.value = cause instanceof Error ? cause.message : String(cause);
-      setStatus(statusLine, "error", `Test failed: ${testMessage.value}`);
+      setStatus(statusLine, "error", testMessage.value);
     }
   }
 

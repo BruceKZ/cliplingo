@@ -46,7 +46,10 @@
             </v-chip>
           </v-list-item-title>
           <v-list-item-subtitle>
-            {{ provider.baseUrl || "-" }} · {{ provider.model || "-" }}
+            {{ provider.baseUrl || "-" }}
+          </v-list-item-subtitle>
+          <v-list-item-subtitle>
+            {{ provider.model || "-" }}
           </v-list-item-subtitle>
         </v-list-item>
       </v-list>

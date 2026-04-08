@@ -9,7 +9,10 @@ use services::{
     history::{HistoryEntryRecord, HistoryRepository},
     language::{LanguageAnalysis, LanguageDetectionService, LanguageRouter},
     logging::{LogEvent, LoggingService},
-    translation::{TranslateTextInput, TranslationExecutionOutput, TranslationOrchestrator},
+    translation::{
+        TranslateTextInput, TranslationExecutionOutput, TranslationOrchestrator,
+        TranslationOrchestratorError,
+    },
     trigger::{
         dispatch_translation_trigger, initialize_trigger_services, TriggerDispatchPayload,
         TriggerSource,
@@ -359,9 +362,19 @@ async fn translate_text(input: TranslateTextInput) -> Result<TranslationExecutio
         }
         Err(error) => {
             let safe_output = TranslationExecutionOutput::from_safe_error(&input, &error);
+            if let TranslationOrchestratorError::Provider(provider_error) = &error {
+                eprintln!(
+                    "[tauri] translate_text:error provider_code={:?} status={:?} message={} details={}",
+                    provider_error.code,
+                    provider_error.status,
+                    provider_error.message,
+                    provider_error.details.as_deref().unwrap_or("")
+                );
+            } else {
+                eprintln!("[tauri] translate_text:error error={}", error);
+            }
             eprintln!(
-                "[tauri] translate_text:error error={} safe_output={}",
-                error,
+                "[tauri] translate_text:error safe_output={}",
                 to_json(&safe_output)
             );
             if let Ok(config) = config_service().load() {

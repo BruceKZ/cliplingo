@@ -123,11 +123,6 @@ export function useTranslationPopupViewModel() {
   const footerTargetCount = computed(
     () => `Targets: ${store.translations.length || 0}`,
   );
-  const pinnedClasses =
-    "border-sky-300/30 bg-sky-400/15 text-sky-50 hover:bg-sky-300/20";
-  const unpinnedClasses =
-    "border-white/10 bg-white/5 text-slate-200 hover:border-sky-300/30 hover:bg-sky-400/10";
-
   function targetEyebrow(index: number) {
     return index === 0 ? "Primary target" : "Secondary target";
   }
@@ -177,8 +172,6 @@ export function useTranslationPopupViewModel() {
     footerStatus,
     footerTiming,
     footerTargetCount,
-    pinnedClasses,
-    unpinnedClasses,
     targetEyebrow,
     targetTitle,
     targetSubtitle,

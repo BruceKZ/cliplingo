@@ -50,7 +50,7 @@
         <v-card
           rounded="md"
           elevation="0"
-          class="relative flex min-h-0 flex-1 flex-col border border-slate-200 bg-white"
+          class="translation-panel relative flex min-h-0 flex-1 flex-col"
         >
         <v-btn
           icon="mdi-content-copy"
@@ -64,7 +64,7 @@
         <v-card-text class="flex min-h-0 flex-1 pa-4">
           <textarea
             v-model="sourceText"
-            class="h-full min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-md border-0 bg-transparent px-4 py-3 pr-12 text-base leading-7 text-gray-900 outline-none"
+            class="translation-textarea h-full min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-md border-0 bg-transparent px-4 py-3 pr-12 text-base leading-7 outline-none"
             placeholder="Paste text here, or trigger with Cmd/Ctrl+C+C"
           />
         </v-card-text>
@@ -75,7 +75,7 @@
         <v-card
           rounded="md"
           elevation="0"
-          class="relative flex min-h-0 flex-1 flex-col border border-slate-200 bg-white"
+          class="translation-panel relative flex min-h-0 flex-1 flex-col"
         >
         <v-btn
           icon="mdi-content-copy"
@@ -90,7 +90,7 @@
           <textarea
             :value="outputText"
             readonly
-            class="h-full min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-md border-0 bg-transparent px-4 py-3 pr-12 text-base leading-7 text-gray-900 outline-none"
+            class="translation-textarea h-full min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-md border-0 bg-transparent px-4 py-3 pr-12 text-base leading-7 outline-none"
           />
         </v-card-text>
         </v-card>
@@ -160,3 +160,19 @@ async function copySource() {
   await store.copySource();
 }
 </script>
+
+<style scoped>
+.translation-panel {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  background: rgb(var(--v-theme-surface));
+}
+
+.translation-textarea {
+  color: rgb(var(--v-theme-on-surface));
+  caret-color: rgb(var(--v-theme-primary));
+}
+
+.translation-textarea::placeholder {
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+</style>

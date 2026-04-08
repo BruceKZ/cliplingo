@@ -14,7 +14,7 @@
       <div class="text-caption text-medium-emphasis mb-2">
         {{ language }} · {{ indexLabel }}
       </div>
-      <pre class="ma-0 rounded border pa-3 whitespace-pre-wrap break-words leading-7">{{ renderedText }}</pre>
+      <pre class="translation-block ma-0 rounded pa-3 whitespace-pre-wrap break-words leading-7">{{ renderedText }}</pre>
       <div class="text-caption text-medium-emphasis mt-2">{{ footerText }}</div>
     </v-card-text>
   </v-card>
@@ -41,3 +41,11 @@ const emit = defineEmits<{
 
 const renderedText = computed(() => props.text || "No translated output yet.");
 </script>
+
+<style scoped>
+.translation-block {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  color: rgb(var(--v-theme-on-surface));
+}
+</style>

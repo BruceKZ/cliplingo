@@ -2,6 +2,7 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -439,12 +440,22 @@ where
 }
 
 fn temporary_path(path: &Path) -> PathBuf {
-    let nonce = SystemTime::now()
+    let nonce = unique_nonce();
+
+    path.with_extension(format!("tmp-{nonce}.toml"))
+}
+
+fn unique_nonce() -> u128 {
+    static UNIQUE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
+    let counter = UNIQUE_COUNTER.fetch_add(1, Ordering::Relaxed) as u128;
+    let process_id = std::process::id() as u128;
 
-    path.with_extension(format!("tmp-{nonce}.toml"))
+    (timestamp << 32) ^ (process_id << 16) ^ counter
 }
 
 #[cfg(test)]
@@ -514,13 +525,7 @@ mod tests {
         PathBuf,
         InMemorySecretStore,
     ) {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "cliplingo-config-test-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time")
-                .as_nanos()
-        ));
+        let temp_dir = std::env::temp_dir().join(format!("cliplingo-config-test-{}", unique_nonce()));
         let config_path = temp_dir.join("config.toml");
         let secret_store = InMemorySecretStore::default();
         (

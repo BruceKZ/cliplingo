@@ -45,6 +45,7 @@ pub struct ProviderResponse {
     pub provider_id: String,
     pub provider_name: String,
     pub model: String,
+    pub server_time_ms: Option<u64>,
     pub content: String,
     pub latency_ms: u64,
     pub finish_reason: Option<String>,

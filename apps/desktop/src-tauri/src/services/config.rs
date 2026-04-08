@@ -32,6 +32,7 @@ pub enum ConfigServiceError {
     Serialize(String),
     SecretStore(String),
     ProviderNotFound(String),
+    ProviderNotVerified(String),
     InvalidProviderId,
 }
 
@@ -45,12 +46,35 @@ impl std::fmt::Display for ConfigServiceError {
             Self::ProviderNotFound(provider_id) => {
                 write!(f, "provider not found: {provider_id}")
             }
+            Self::ProviderNotVerified(provider_id) => {
+                write!(
+                    f,
+                    "provider must pass a connectivity check before activation: {provider_id}"
+                )
+            }
             Self::InvalidProviderId => f.write_str("provider id must not be empty"),
         }
     }
 }
 
 impl std::error::Error for ConfigServiceError {}
+
+fn provider_requires_reverification(
+    existing: &ProviderConfigRecord,
+    next: &ProviderConfigRecord,
+) -> bool {
+    existing.kind != next.kind
+        || existing.base_url != next.base_url
+        || existing.path != next.path
+        || existing.auth_scheme != next.auth_scheme
+        || existing.organization != next.organization
+        || existing.model != next.model
+        || existing.temperature != next.temperature
+        || existing.top_p != next.top_p
+        || existing.max_tokens != next.max_tokens
+        || existing.timeout_secs != next.timeout_secs
+        || existing.custom_headers != next.custom_headers
+}
 
 pub struct ConfigService<P, S> {
     path_provider: P,
@@ -125,10 +149,19 @@ where
             .iter_mut()
             .find(|existing| existing.id == provider_id)
         {
+            let previous_verified_at = existing.verified_at;
             let api_key_ref = existing.api_key_ref.clone();
+            let requires_reverification = provider_requires_reverification(existing, &provider);
             *existing = provider;
             existing.api_key_ref = existing.api_key_ref.clone().or(api_key_ref);
+            existing.verified_at = if requires_reverification {
+                None
+            } else {
+                previous_verified_at
+            };
         } else {
+            let mut provider = provider;
+            provider.verified_at = None;
             config.providers.push(provider);
         }
 
@@ -195,6 +228,15 @@ where
             {
                 return Err(ConfigServiceError::ProviderNotFound(provider_id));
             }
+            if let Some(provider) = config
+                .providers
+                .iter()
+                .find(|provider| provider.id == provider_id)
+            {
+                if provider.verified_at.is_none() {
+                    return Err(ConfigServiceError::ProviderNotVerified(provider_id));
+                }
+            }
             config.active_provider_id = Some(provider_id);
         } else {
             config.active_provider_id = None;
@@ -231,6 +273,7 @@ where
             .unwrap_or_else(|| format!("provider/{provider_id}"));
         self.secret_store.set_secret(&secret_ref, api_key)?;
         provider.api_key_ref = Some(secret_ref);
+        provider.verified_at = None;
         self.save(config)?;
 
         let status = ProviderSecretStatus {
@@ -288,6 +331,7 @@ where
         }
 
         provider.api_key_ref = None;
+        provider.verified_at = None;
         self.save(config)?;
 
         let status = ProviderSecretStatus {
@@ -335,6 +379,26 @@ where
         );
 
         Ok(ResolvedProviderConfig { provider, api_key })
+    }
+
+    pub fn mark_provider_verified_at(
+        &self,
+        provider_id: &str,
+        verified_at: u64,
+    ) -> Result<AppConfigRecord, ConfigServiceError> {
+        eprintln!("[config] mark_provider_verified:start provider_id={provider_id}");
+        let mut config = self.load()?;
+        let provider = config
+            .providers
+            .iter_mut()
+            .find(|provider| provider.id == provider_id)
+            .ok_or_else(|| ConfigServiceError::ProviderNotFound(provider_id.to_string()))?;
+
+        provider.verified_at = Some(verified_at);
+
+        let saved = self.save(config)?;
+        eprintln!("[config] mark_provider_verified:done provider_id={provider_id}");
+        Ok(saved)
     }
 
     fn load_from_path(&self, path: &Path) -> Result<AppConfigRecord, ConfigServiceError> {
@@ -517,6 +581,80 @@ mod tests {
     }
 
     #[test]
+    fn provider_must_be_verified_before_activation() {
+        let (service, _, _) = service();
+        let provider = ProviderConfigRecord {
+            id: "provider-one".to_string(),
+            name: "Provider One".to_string(),
+            ..ProviderConfigRecord::default()
+        };
+
+        service.upsert_provider(provider).expect("insert provider");
+
+        let error = service
+            .set_active_provider(Some("provider-one".to_string()))
+            .expect_err("verification should be required");
+
+        assert!(matches!(
+            error,
+            ConfigServiceError::ProviderNotVerified(provider_id) if provider_id == "provider-one"
+        ));
+    }
+
+    #[test]
+    fn changing_provider_config_clears_verification() {
+        let (service, _, _) = service();
+        let provider = ProviderConfigRecord {
+            id: "provider-one".to_string(),
+            name: "Provider One".to_string(),
+            base_url: "https://example.com".to_string(),
+            model: "gpt-test".to_string(),
+            ..ProviderConfigRecord::default()
+        };
+
+        service.upsert_provider(provider).expect("insert provider");
+        let verified = service
+            .mark_provider_verified_at("provider-one", 1_744_202_096_000)
+            .expect("mark verified");
+        assert_eq!(verified.providers[0].verified_at.is_some(), true);
+
+        let updated = service
+            .upsert_provider(ProviderConfigRecord {
+                id: "provider-one".to_string(),
+                name: "Provider One".to_string(),
+                base_url: "https://another.example.com".to_string(),
+                model: "gpt-test".to_string(),
+                ..ProviderConfigRecord::default()
+            })
+            .expect("update provider");
+
+        assert_eq!(updated.providers[0].verified_at, None);
+    }
+
+    #[test]
+    fn changing_provider_secret_clears_verification() {
+        let (service, _, _) = service();
+        let provider = ProviderConfigRecord {
+            id: "provider-one".to_string(),
+            name: "Provider One".to_string(),
+            base_url: "https://example.com".to_string(),
+            model: "gpt-test".to_string(),
+            ..ProviderConfigRecord::default()
+        };
+
+        service.upsert_provider(provider).expect("insert provider");
+        service
+            .mark_provider_verified_at("provider-one", 1_744_202_096_000)
+            .expect("mark verified");
+
+        service
+            .set_provider_secret("provider-one", "secret")
+            .expect("set secret");
+        let after_secret_change = service.load().expect("load config");
+        assert_eq!(after_secret_change.providers[0].verified_at, None);
+    }
+
+    #[test]
     fn removing_provider_also_removes_secret_and_active_provider() {
         let (service, _, secret_store) = service();
         let provider = ProviderConfigRecord {
@@ -528,6 +666,9 @@ mod tests {
         service
             .set_provider_secret("provider-one", "secret")
             .expect("store secret");
+        service
+            .mark_provider_verified_at("provider-one", 1_744_202_096_000)
+            .expect("mark verified");
         service
             .set_active_provider(Some("provider-one".to_string()))
             .expect("activate provider");

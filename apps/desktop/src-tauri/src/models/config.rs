@@ -168,6 +168,7 @@ pub struct ProviderConfigRecord {
     pub timeout_secs: u64,
     pub custom_headers: Vec<KeyValuePairRecord>,
     pub enabled: bool,
+    pub verified_at: Option<u64>,
 }
 
 impl Default for ProviderConfigRecord {
@@ -188,6 +189,7 @@ impl Default for ProviderConfigRecord {
             timeout_secs: DEFAULT_TIMEOUT_SECS,
             custom_headers: Vec::new(),
             enabled: true,
+            verified_at: None,
         }
     }
 }
@@ -235,7 +237,7 @@ impl AppConfigRecord {
         self.active_provider_id = self.active_provider_id.filter(|provider_id| {
             self.providers
                 .iter()
-                .any(|provider| provider.id == *provider_id)
+                .any(|provider| provider.id == *provider_id && provider.verified_at.is_some())
         });
 
         self

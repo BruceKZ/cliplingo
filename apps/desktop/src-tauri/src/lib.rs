@@ -308,6 +308,26 @@ async fn delete_provider_api_key(provider_id: String) -> Result<ProviderSecretSt
 }
 
 #[tauri::command]
+async fn mark_provider_verified(
+    provider_id: String,
+    verified_at: u64,
+) -> Result<ProviderDirectoryRecord, String> {
+    eprintln!(
+        "[tauri] mark_provider_verified:start provider_id={} verified_at={}",
+        provider_id, verified_at
+    );
+    let directory = config_service()
+        .mark_provider_verified_at(&provider_id, verified_at)
+        .map(|config| config.provider_directory())
+        .map_err(|error| error.to_string())?;
+    eprintln!(
+        "[tauri] mark_provider_verified:done directory={}",
+        to_json(&directory)
+    );
+    Ok(directory)
+}
+
+#[tauri::command]
 async fn analyze_language_routing(
     text: String,
     rule: Option<models::config::LanguageRoutingRuleRecord>,
@@ -506,6 +526,7 @@ pub fn run() {
             upsert_provider_config,
             remove_provider_config,
             set_active_provider,
+            mark_provider_verified,
             set_provider_api_key,
             get_provider_api_key_status,
             delete_provider_api_key,

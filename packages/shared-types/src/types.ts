@@ -98,6 +98,7 @@ export interface ProviderConfig {
   timeoutSecs: number;
   customHeaders: KeyValuePair[];
   enabled: boolean;
+  verifiedAt: number | null;
 }
 
 export interface ProviderDirectory {

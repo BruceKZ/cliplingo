@@ -37,6 +37,7 @@ export interface TranslationCommandOutput {
   providerId: string;
   providerName: string;
   model: string;
+  serverTimeMs: number | null;
   latencyMs: number;
   fallbackUsed: boolean;
   error: TranslationCommandError | null;

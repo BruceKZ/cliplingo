@@ -123,6 +123,7 @@ export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
   timeoutSecs: DEFAULT_TIMEOUT_SECS,
   customHeaders: [],
   enabled: true,
+  verifiedAt: null,
 };
 
 export const DEFAULT_APP_CONFIG: AppConfig = {

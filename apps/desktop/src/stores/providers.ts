@@ -44,7 +44,7 @@ function createProviderDraft(
   return {
     ...createDefaultProviderConfig(),
     ...overrides,
-    customHeaders: overrides.customHeaders
+  customHeaders: overrides.customHeaders
       ? overrides.customHeaders.map((header) => ({ ...header }))
       : overrides.customHeaders ?? [],
     apiKeyDraft: overrides.apiKeyDraft ?? "",
@@ -60,6 +60,10 @@ function setStatus(
   message: string,
 ) {
   statusLine.value = { tone, message, at: Date.now() };
+}
+
+function createProviderId(): string {
+  return crypto.randomUUID();
 }
 
 function validateProvider(provider: ProviderDraft): string | null {
@@ -166,6 +170,14 @@ export const useProvidersStore = defineStore("providers", () => {
       null,
   );
 
+  function preservedDraftMap() {
+    return new Map(
+      providers
+        .filter((provider) => provider.apiKeyDraft.trim())
+        .map((provider) => [provider.id, provider.apiKeyDraft.trim()] as const),
+    );
+  }
+
   function applyDirectory(
     directory: ProviderDirectory,
     options: {
@@ -226,6 +238,7 @@ export const useProvidersStore = defineStore("providers", () => {
 
     if (!provider.persistedId) {
       provider.hasSecret = false;
+      provider.verifiedAt = null;
       setStatus(statusLine, "success", "API key cleared.");
       return;
     }
@@ -235,6 +248,7 @@ export const useProvidersStore = defineStore("providers", () => {
     });
     provider.hasSecret = false;
     provider.apiKeyRef = null;
+    provider.verifiedAt = null;
     setStatus(statusLine, "success", "Saved API key cleared.");
   }
 
@@ -261,21 +275,14 @@ export const useProvidersStore = defineStore("providers", () => {
   }
 
   async function reload(selectedId?: string | null) {
-    const preservedDrafts = new Map(
-      providers
-        .filter((provider) => provider.apiKeyDraft.trim())
-        .map((provider) => [provider.id, provider.apiKeyDraft.trim()] as const),
-    );
+    const preservedDrafts = preservedDraftMap();
     const directory = await invokeWithTimeout<ProviderDirectory>("list_providers");
     applyDirectory(directory, { preservedDrafts, selectedId });
   }
 
   function addProvider() {
-    const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     const defaults = getDefaultProviderDraft();
-    const nextId = providers.some((provider) => provider.id === defaults.id)
-      ? `${defaults.id}-${suffix}`
-      : defaults.id;
+    const nextId = createProviderId();
 
     const nextProvider = createProviderDraft({
       ...defaults,
@@ -283,29 +290,32 @@ export const useProvidersStore = defineStore("providers", () => {
       name: defaults.name || `Provider ${providers.length + 1}`,
       persistedId: null,
       hasSecret: Boolean(defaults.apiKeyDraft),
+      verifiedAt: null,
     });
 
     providers.push(nextProvider);
     selectedProviderId.value = nextProvider.id;
+    return nextProvider.id;
   }
 
   function duplicateProvider(providerId: string) {
     const existing = providers.find((provider) => provider.id === providerId);
     if (!existing) {
-      return;
+      return null;
     }
 
-    const suffix = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
     const duplicate = createProviderDraft({
       ...existing,
-      id: `${existing.id || "provider"}-${suffix}`,
+      id: createProviderId(),
       name: `${existing.name || existing.id || "Provider"} Copy`,
       persistedId: null,
+      verifiedAt: null,
     });
 
     providers.push(duplicate);
     selectedProviderId.value = duplicate.id;
     setStatus(statusLine, "success", "Provider duplicated.");
+    return duplicate.id;
   }
 
   async function removeProvider(providerId: string) {
@@ -339,12 +349,30 @@ export const useProvidersStore = defineStore("providers", () => {
     }
   }
 
+  function getProvider(providerId: string) {
+    return providers.find((provider) => provider.id === providerId) ?? null;
+  }
+
   async function makeProviderActive(providerId: string) {
-    const directory = await invokeWithTimeout<ProviderDirectory>("set_active_provider", {
+    try {
+      const directory = await invokeWithTimeout<ProviderDirectory>("set_active_provider", {
+        providerId,
+      });
+      applyDirectory(directory, { selectedId: providerId, preservedDrafts: preservedDraftMap() });
+      setStatus(statusLine, "success", "Active provider updated.");
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : String(cause);
+      setStatus(statusLine, "error", error.value);
+      throw cause;
+    }
+  }
+
+  async function markProviderVerified(providerId: string, verifiedAt: number) {
+    const directory = await invokeWithTimeout<ProviderDirectory>("mark_provider_verified", {
       providerId,
+      verifiedAt,
     });
-    applyDirectory(directory, { selectedId: providerId });
-    setStatus(statusLine, "success", "Active provider updated.");
+    applyDirectory(directory, { selectedId: providerId, preservedDrafts: preservedDraftMap() });
   }
 
   function addProviderHeader(providerId: string) {
@@ -414,6 +442,7 @@ export const useProvidersStore = defineStore("providers", () => {
             value: header.value.trim(),
           })),
           enabled: provider.enabled,
+          verifiedAt: provider.verifiedAt,
         },
       });
 
@@ -497,6 +526,11 @@ export const useProvidersStore = defineStore("providers", () => {
         throw new Error(result.error.message);
       }
 
+      if (!result.serverTimeMs) {
+        throw new Error("Connectivity check did not return a valid server time.");
+      }
+
+      await markProviderVerified(providerId, result.serverTimeMs);
       testState.value = "success";
       testMessage.value = `Test succeeded in ${result.latencyMs} ms.`;
       setStatus(statusLine, "success", testMessage.value);
@@ -525,7 +559,9 @@ export const useProvidersStore = defineStore("providers", () => {
     duplicateProvider,
     removeProvider,
     selectProvider,
+    getProvider,
     makeProviderActive,
+    markProviderVerified,
     addProviderHeader,
     removeProviderHeader,
     clearProviderSecret,

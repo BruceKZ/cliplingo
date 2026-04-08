@@ -24,6 +24,12 @@ const router = createRouter({
       name: "providers",
       component: () => import("@/views/ProvidersView.vue"),
     },
+    {
+      path: "/providers/:providerId",
+      name: "provider-detail",
+      component: () => import("@/views/ProviderDetailView.vue"),
+      props: true,
+    },
   ],
 });
 

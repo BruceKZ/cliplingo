@@ -3,6 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::DateTime;
 use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client,
@@ -199,6 +200,12 @@ impl TranslationProvider for OpenAiCompatibleProvider {
 
         let latency_ms = started_at.elapsed().as_millis() as u64;
         let status = response.status();
+        let server_time_ms = response
+            .headers()
+            .get(reqwest::header::DATE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| DateTime::parse_from_rfc2822(value).ok())
+            .and_then(|value| u64::try_from(value.timestamp_millis()).ok());
         let response_text = response.text().await.map_err(|error| {
             provider_error(
                 &self.provider_id,
@@ -257,6 +264,7 @@ impl TranslationProvider for OpenAiCompatibleProvider {
             provider_id: self.provider_id.clone(),
             provider_name: self.provider_name.clone(),
             model: parsed.model.unwrap_or(settings.model),
+            server_time_ms,
             content,
             latency_ms,
             finish_reason,
@@ -611,11 +619,13 @@ mod tests {
                 value: "value".to_string(),
             }],
             enabled: true,
+            verified_at: Some(1),
         }
     }
 
     fn start_test_server(
         response_body: &'static str,
+        date_header: Option<&'static str>,
     ) -> (String, Arc<Mutex<Option<String>>>, thread::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
         let addr = listener.local_addr().expect("local addr");
@@ -672,11 +682,14 @@ mod tests {
             );
             *captured_request_clone.lock().expect("lock request") = Some(full_request);
 
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            let mut response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n",
                 response_body.len(),
-                response_body
             );
+            if let Some(date_header) = date_header {
+                response.push_str(&format!("Date: {date_header}\r\n"));
+            }
+            response.push_str(&format!("Connection: close\r\n\r\n{}", response_body));
             stream
                 .write_all(response.as_bytes())
                 .expect("write response");
@@ -782,6 +795,7 @@ mod tests {
                     "total_tokens": 15
                 }
             }"#,
+            Some("Wed, 09 Apr 2025 12:34:56 GMT"),
         );
 
         let provider = OpenAiCompatibleProvider::try_from_config(
@@ -818,6 +832,7 @@ mod tests {
         assert_eq!(response.provider_id, "provider-1");
         assert_eq!(response.provider_name, "OpenAI-compatible");
         assert_eq!(response.model, "gpt-4o-mini");
+        assert_eq!(response.server_time_ms, Some(1744202096000));
         assert_eq!(response.content, "translated output");
         assert_eq!(response.finish_reason.as_deref(), Some("stop"));
         assert_eq!(

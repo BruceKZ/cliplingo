@@ -4,6 +4,9 @@ mod storage;
 
 use models::config::{AppConfigRecord, ProviderConfigRecord, ProviderDirectoryRecord};
 use services::{
+    accessibility::{
+        open_trigger_permission_settings, trigger_permission_status, TriggerPermissionStatus,
+    },
     clipboard::{read_clipboard_text, read_clipboard_text_with_limits, ClipboardLimits},
     config::{ConfigService, ProviderSecretStatus},
     history::{HistoryEntryRecord, HistoryRepository},
@@ -442,6 +445,16 @@ async fn trigger_translation_from_fallback_shortcut(
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+async fn get_trigger_permission_status() -> Result<TriggerPermissionStatus, String> {
+    Ok(trigger_permission_status())
+}
+
+#[tauri::command]
+async fn open_trigger_permission_settings_command() -> Result<(), String> {
+    open_trigger_permission_settings()
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let show_main = MenuItem::with_id(
         app,
@@ -534,7 +547,9 @@ pub fn run() {
             translate_text,
             list_translation_history,
             clear_translation_history,
-            trigger_translation_from_fallback_shortcut
+            trigger_translation_from_fallback_shortcut,
+            get_trigger_permission_status,
+            open_trigger_permission_settings_command
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

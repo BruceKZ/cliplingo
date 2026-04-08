@@ -136,7 +136,16 @@ type MessageKey =
   | "settings.providerNeedsSetup"
   | "settings.providerValidation"
   | "settings.providerVerified"
-  | "settings.providerNeedsVerification";
+  | "settings.providerNeedsVerification"
+  | "settings.triggerPermissions"
+  | "settings.triggerPermissionsHint"
+  | "settings.accessibilityStatusGranted"
+  | "settings.accessibilityStatusMissing"
+  | "settings.openAccessibilitySettings"
+  | "settings.refreshPermissionStatus"
+  | "settings.doubleCopyReady"
+  | "settings.doubleCopyNeedsPermission"
+  | "settings.platformPermissionNotRequired";
 
 const MESSAGES: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
@@ -275,6 +284,18 @@ const MESSAGES: Record<AppLocale, Record<MessageKey, string>> = {
     "settings.providerValidation": "Connectivity",
     "settings.providerVerified": "Reachable",
     "settings.providerNeedsVerification": "Untested",
+    "settings.triggerPermissions": "Double-copy permission",
+    "settings.triggerPermissionsHint":
+      "ClipLingo uses macOS Accessibility permission for the global double-copy trigger. The fallback shortcut does not depend on it.",
+    "settings.accessibilityStatusGranted": "Accessibility access granted",
+    "settings.accessibilityStatusMissing": "Accessibility access required",
+    "settings.openAccessibilitySettings": "Open Accessibility Settings",
+    "settings.refreshPermissionStatus": "Refresh status",
+    "settings.doubleCopyReady": "Double-copy trigger is available.",
+    "settings.doubleCopyNeedsPermission":
+      "Grant Accessibility permission to enable Cmd+C+C in other apps.",
+    "settings.platformPermissionNotRequired":
+      "This platform does not require an extra permission for double-copy.",
   },
   "zh-CN": {
     "nav.translate": "翻译",
@@ -412,6 +433,17 @@ const MESSAGES: Record<AppLocale, Record<MessageKey, string>> = {
     "settings.providerValidation": "连通性",
     "settings.providerVerified": "已连通",
     "settings.providerNeedsVerification": "待检测",
+    "settings.triggerPermissions": "双击复制权限",
+    "settings.triggerPermissionsHint":
+      "ClipLingo 在 macOS 上使用辅助功能权限启用全局双击复制触发器，备用快捷键不依赖这个权限。",
+    "settings.accessibilityStatusGranted": "已授予辅助功能权限",
+    "settings.accessibilityStatusMissing": "需要辅助功能权限",
+    "settings.openAccessibilitySettings": "打开辅助功能设置",
+    "settings.refreshPermissionStatus": "刷新状态",
+    "settings.doubleCopyReady": "双击复制触发器可用。",
+    "settings.doubleCopyNeedsPermission":
+      "请授予辅助功能权限，以便在其他应用中使用 Cmd+C+C。",
+    "settings.platformPermissionNotRequired": "当前平台不需要额外权限即可使用双击复制。",
   },
 };
 

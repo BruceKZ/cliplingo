@@ -1,25 +1,26 @@
 use std::{
     sync::{Arc, Mutex},
-    thread,
     time::{Duration, Instant},
 };
 
 #[cfg(target_os = "macos")]
-use core_foundation::runloop::CFRunLoop;
-#[cfg(target_os = "macos")]
-use core_graphics::event::{
-    CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
-    CGEventType, CallbackResult, EventField, KeyCode,
-};
+use block2::RcBlock;
 #[cfg(not(target_os = "macos"))]
 use rdev::{listen, Event, EventType, Key};
+#[cfg(not(target_os = "macos"))]
+use std::thread;
+#[cfg(target_os = "macos")]
+use std::ptr::NonNull;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSEvent, NSEventMask, NSEventModifierFlags};
 use tauri_plugin_global_shortcut::{
     Builder as GlobalShortcutBuilder, Code, Modifiers, Shortcut, ShortcutState,
 };
 
 use crate::{
+    services::accessibility::macos_accessibility_granted,
     services::clipboard::{read_clipboard_text, ClipboardServiceError, ClipboardText},
     MAIN_WINDOW_LABEL,
 };
@@ -208,59 +209,56 @@ fn spawn_double_copy_listener(app: AppHandle, double_copy_window_ms: u64) {
 
 #[cfg(target_os = "macos")]
 fn spawn_double_copy_listener(app: AppHandle, double_copy_window_ms: u64) {
+    if !macos_accessibility_granted() {
+        eprintln!(
+            "double-copy listener unavailable: Accessibility permission is required on macOS"
+        );
+        return;
+    }
+
     let state_machine = Arc::new(Mutex::new(CopyTriggerStateMachine::new(
         Duration::from_millis(normalized_window_ms(double_copy_window_ms)),
     )));
-
-    thread::spawn(move || {
-        if let Err(error) = run_macos_double_copy_listener(app, state_machine) {
-            eprintln!("double-copy listener unavailable: {error}");
-        }
-    });
+    run_macos_double_copy_listener(app, state_machine);
 }
 
 #[cfg(target_os = "macos")]
 fn run_macos_double_copy_listener(
     app: AppHandle,
     state_machine: Arc<Mutex<CopyTriggerStateMachine>>,
-) -> Result<(), String> {
-    CGEventTap::with_enabled(
-        CGEventTapLocation::HID,
-        CGEventTapPlacement::HeadInsertEventTap,
-        CGEventTapOptions::ListenOnly,
-        vec![CGEventType::KeyDown],
-        move |_proxy, _event_type, event| {
-            let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE) as u16;
-            if keycode != KeyCode::ANSI_C {
-                return CallbackResult::Keep;
-            }
+) {
+    const KEYCODE_C: u16 = 8;
 
-            let modifier_flags = event.get_flags();
-            let copy_modifier_active = modifier_flags
-                .intersects(CGEventFlags::CGEventFlagCommand | CGEventFlags::CGEventFlagControl);
-            if !copy_modifier_active {
-                return CallbackResult::Keep;
-            }
+    let monitor = RcBlock::new(move |event: NonNull<NSEvent>| {
+        let event = unsafe { event.as_ref() };
+        if event.keyCode() != KEYCODE_C {
+            return;
+        }
 
-            let is_repeat =
-                event.get_integer_value_field(EventField::KEYBOARD_EVENT_AUTOREPEAT) != 0;
-            if is_repeat {
-                return CallbackResult::Keep;
-            }
+        let modifier_flags = event.modifierFlags();
+        let copy_modifier_active = modifier_flags
+            .intersects(NSEventModifierFlags::Command | NSEventModifierFlags::Control);
+        if !copy_modifier_active || event.isARepeat() {
+            return;
+        }
 
-            let mut trigger_state = state_machine.lock().expect("trigger state lock");
-            if trigger_state.register_copy(Instant::now()) {
-                println!("[trigger] double-copy detected (macOS event tap)");
-                let _ = dispatch_translation_trigger(&app, TriggerSource::DoubleCopy);
-            }
+        let mut trigger_state = state_machine.lock().expect("trigger state lock");
+        if trigger_state.register_copy(Instant::now()) {
+            println!("[trigger] double-copy detected (macOS accessibility monitor)");
+            let _ = dispatch_translation_trigger(&app, TriggerSource::DoubleCopy);
+        }
+    });
 
-            CallbackResult::Keep
-        },
-        CFRunLoop::run_current,
-    )
-    .map_err(|_| {
-        "failed to install macOS event tap (check Input Monitoring permission)".to_string()
-    })
+    if let Some(token) =
+        NSEvent::addGlobalMonitorForEventsMatchingMask_handler(NSEventMask::KeyDown, &monitor)
+    {
+        std::mem::forget(token);
+        std::mem::forget(monitor);
+    } else {
+        eprintln!(
+            "double-copy listener unavailable: failed to install macOS accessibility monitor"
+        );
+    }
 }
 
 #[cfg(not(target_os = "macos"))]

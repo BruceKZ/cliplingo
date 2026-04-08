@@ -12,7 +12,7 @@
           <v-tab value="general">{{ t("settings.general") }}</v-tab>
           <v-tab value="trigger" disabled>{{ t("settings.trigger") }}</v-tab>
           <v-tab value="routing">{{ t("settings.languageRouting") }}</v-tab>
-          <v-tab value="privacy" disabled>{{ t("settings.privacy") }}</v-tab>
+          <v-tab value="privacy">{{ t("settings.privacy") }}</v-tab>
           <v-tab value="providers">{{ t("settings.providers") }}</v-tab>
         </v-tabs>
       </div>
@@ -221,9 +221,82 @@
           <div class="editor-section">
             <div class="section-copy">
               <h2 class="text-subtitle-1 font-weight-medium">{{ t("settings.privacy") }}</h2>
-              <p class="text-body-2 text-medium-emphasis">{{ t("settings.providerActionsHint") }}</p>
+              <p class="text-body-2 text-medium-emphasis">
+                {{ t("settings.triggerPermissionsHint") }}
+              </p>
             </div>
             <v-row dense>
+              <v-col cols="12">
+                <div class="privacy-card">
+                  <div class="privacy-card__header">
+                    <div>
+                      <div class="field-label mb-1">{{ t("settings.triggerPermissions") }}</div>
+                      <p class="text-body-2 text-medium-emphasis">
+                        {{
+                          permissionStatus?.accessibilityRequired
+                            ? permissionStatus.accessibilityGranted
+                              ? t("settings.doubleCopyReady")
+                              : t("settings.doubleCopyNeedsPermission")
+                            : t("settings.platformPermissionNotRequired")
+                        }}
+                      </p>
+                    </div>
+                    <div class="privacy-card__actions">
+                      <v-btn
+                        class="app-btn app-btn--compact"
+                        color="primary"
+                        variant="tonal"
+                        prepend-icon="mdi-refresh"
+                        :loading="permissionLoading"
+                        @click="refreshPermissionStatus"
+                      >
+                        {{ t("settings.refreshPermissionStatus") }}
+                      </v-btn>
+                      <v-btn
+                        v-if="
+                          permissionStatus?.accessibilityRequired &&
+                          !permissionStatus.accessibilityGranted
+                        "
+                        class="app-btn app-btn--compact"
+                        color="primary"
+                        variant="flat"
+                        prepend-icon="mdi-open-in-new"
+                        @click="openPermissionSettings"
+                      >
+                        {{ t("settings.openAccessibilitySettings") }}
+                      </v-btn>
+                    </div>
+                  </div>
+
+                  <div
+                    class="permission-chip"
+                    :class="
+                      permissionStatus?.accessibilityRequired &&
+                      !permissionStatus.accessibilityGranted
+                        ? 'permission-chip--warning'
+                        : 'permission-chip--success'
+                    "
+                  >
+                    <v-icon
+                      size="18"
+                      :icon="
+                        permissionStatus?.accessibilityRequired &&
+                        !permissionStatus.accessibilityGranted
+                          ? 'mdi-alert-circle-outline'
+                          : 'mdi-check-circle-outline'
+                      "
+                    />
+                    <span>
+                      {{
+                        permissionStatus?.accessibilityRequired &&
+                        !permissionStatus.accessibilityGranted
+                          ? t("settings.accessibilityStatusMissing")
+                          : t("settings.accessibilityStatusGranted")
+                      }}
+                    </span>
+                  </div>
+                </div>
+              </v-col>
               <v-col cols="12">
                 <div class="toggle-row">
                   <div>
@@ -333,6 +406,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 import type { ThemeMode } from "@cliplingo/shared-types";
 import ProviderOverviewPanel from "@/components/settings/ProviderOverviewPanel.vue";
 import { useI18n } from "@/i18n";
@@ -341,11 +415,21 @@ import { useUiStore, type AppLocale } from "@/stores/ui";
 
 type SettingsTab = "general" | "trigger" | "routing" | "privacy" | "providers";
 
+interface TriggerPermissionStatus {
+  platform: string;
+  accessibilityRequired: boolean;
+  accessibilityGranted: boolean;
+  doubleCopyAvailable: boolean;
+  settingsUrl: string | null;
+}
+
 const settingsStore = useSettingsStore();
 const uiStore = useUiStore();
 const { t } = useI18n();
 
 const activeTab = ref<SettingsTab>("general");
+const permissionStatus = ref<TriggerPermissionStatus | null>(null);
+const permissionLoading = ref(false);
 
 const localeOptions = computed(() => [
   { title: "English", value: "en" },
@@ -527,10 +611,24 @@ const fixedTargetLanguages = computed({
 
 onMounted(() => {
   settingsStore.load().catch(() => undefined);
+  refreshPermissionStatus().catch(() => undefined);
 });
 
 async function saveSettings() {
   await settingsStore.save().catch(() => undefined);
+}
+
+async function refreshPermissionStatus() {
+  permissionLoading.value = true;
+  try {
+    permissionStatus.value = await invoke<TriggerPermissionStatus>("get_trigger_permission_status");
+  } finally {
+    permissionLoading.value = false;
+  }
+}
+
+async function openPermissionSettings() {
+  await invoke("open_trigger_permission_settings_command");
 }
 
 </script>
@@ -568,6 +666,50 @@ async function saveSettings() {
 .editor-section {
   display: grid;
   gap: 18px;
+}
+
+.privacy-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-panel);
+}
+
+.privacy-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.privacy-card__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.permission-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.permission-chip--success {
+  color: #1f6f43;
+  background: rgba(31, 111, 67, 0.12);
+}
+
+.permission-chip--warning {
+  color: #9a5b00;
+  background: rgba(154, 91, 0, 0.14);
 }
 
 .section-copy {

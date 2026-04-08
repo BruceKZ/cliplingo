@@ -8,9 +8,7 @@
   Lightweight desktop translation for macOS and Windows, built around a fast clipboard-first workflow.
 </p>
 
-## Tech Stack
-
-<p>
+<p align="center">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-v2-24C8DB?style=flat-square&logo=tauri&logoColor=white" />
   <img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-42B883?style=flat-square&logo=vuedotjs&logoColor=white" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" />
@@ -20,36 +18,8 @@
   <img alt="Vue Router" src="https://img.shields.io/badge/Vue_Router-4-42B883?style=flat-square&logo=vuedotjs&logoColor=white" />
   <img alt="Rust" src="https://img.shields.io/badge/Rust-Core-000000?style=flat-square&logo=rust&logoColor=white" />
   <img alt="Vite" src="https://img.shields.io/badge/Vite-Build-646CFF?style=flat-square&logo=vite&logoColor=white" />
-  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-Workspace-F69220?style=flat-square&logo=pnpm&logoColor=white" />
-</p>
-
-| Area | Choice |
-| --- | --- |
-| Desktop shell | Tauri v2 |
-| Frontend | Vue 3 + TypeScript |
-| UI system | Vuetify + Tailwind CSS |
-| State management | Pinia |
-| Routing | Vue Router |
-| Native/backend | Rust |
-| Shared contracts | `packages/shared-types` |
-| Tooling | Vite, pnpm, ESLint, Prettier |
-
-<p align="center">
-  <a href="https://github.com/BruceKZ/cliplingo/stargazers">
-    <img alt="GitHub stars" src="https://img.shields.io/github/stars/BruceKZ/cliplingo?style=flat-square" />
-  </a>
-  <a href="https://github.com/BruceKZ/cliplingo/network/members">
-    <img alt="GitHub forks" src="https://img.shields.io/github/forks/BruceKZ/cliplingo?style=flat-square" />
-  </a>
-  <a href="https://github.com/BruceKZ/cliplingo/releases">
-    <img alt="GitHub release" src="https://img.shields.io/github/v/release/BruceKZ/cliplingo?style=flat-square" />
-  </a>
-  <a href="https://github.com/BruceKZ/cliplingo/issues">
-    <img alt="GitHub issues" src="https://img.shields.io/github/issues/BruceKZ/cliplingo?style=flat-square" />
-  </a>
-  <a href="./LICENSE">
-    <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-black?style=flat-square" />
-  </a>
+  <img alt="GitHub release" src="https://img.shields.io/github/v/release/BruceKZ/cliplingo?style=flat-square" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-black?style=flat-square" />
 </p>
 
 ## Overview
@@ -186,6 +156,21 @@ User selection
   -> translation result
   -> popup / workspace UI
 ```
+
+## Tech Stack
+
+| Area | Choice |
+| --- | --- |
+| Desktop shell | Tauri v2 |
+| Frontend | Vue 3 + TypeScript |
+| UI system | Vuetify + Tailwind CSS |
+| State management | Pinia |
+| Routing | Vue Router |
+| Native/backend | Rust |
+| Shared contracts | `packages/shared-types` |
+| Tooling | Vite, pnpm, ESLint, Prettier |
+
+
 
 ## Development Notes
 

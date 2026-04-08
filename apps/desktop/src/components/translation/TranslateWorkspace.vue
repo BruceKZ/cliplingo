@@ -100,10 +100,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useTranslationStore } from "@/stores/translation";
 
 const store = useTranslationStore();
+const AUTO_TRANSLATE_DELAY_MS = 400;
 
 interface LanguageOption {
   title: string;
@@ -140,6 +141,8 @@ const sourceText = computed({
 
 const outputText = computed(() => store.translations[0]?.text ?? "");
 const hasOutput = computed(() => outputText.value.trim().length > 0);
+let autoTranslateTimer: number | null = null;
+
 async function translateNow() {
   await store.retryTranslation({
     sourceLanguage:
@@ -159,6 +162,38 @@ async function copyOutput() {
 async function copySource() {
   await store.copySource();
 }
+
+function clearAutoTranslateTimer() {
+  if (autoTranslateTimer !== null) {
+    window.clearTimeout(autoTranslateTimer);
+    autoTranslateTimer = null;
+  }
+}
+
+function scheduleAutoTranslate() {
+  clearAutoTranslateTimer();
+
+  if (!sourceText.value.trim()) {
+    return;
+  }
+
+  autoTranslateTimer = window.setTimeout(() => {
+    autoTranslateTimer = null;
+    void translateNow();
+  }, AUTO_TRANSLATE_DELAY_MS);
+}
+
+watch(sourceText, () => {
+  scheduleAutoTranslate();
+});
+
+watch([selectedSourceLanguage, selectedTargetLanguage], () => {
+  scheduleAutoTranslate();
+});
+
+onBeforeUnmount(() => {
+  clearAutoTranslateTimer();
+});
 </script>
 
 <style scoped>

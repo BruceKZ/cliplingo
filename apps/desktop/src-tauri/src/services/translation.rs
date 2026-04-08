@@ -398,6 +398,7 @@ fn resolve_target_languages(
     routed: Vec<String>,
     source_language: &str,
 ) -> Result<Vec<String>, TranslationOrchestratorError> {
+    let explicit_request = requested.is_some();
     let candidates = requested.unwrap_or(routed);
     let mut unique = Vec::new();
 
@@ -405,7 +406,10 @@ fn resolve_target_languages(
         let Some(normalized) = normalized_language_code(&value) else {
             continue;
         };
-        if normalized == source_language || unique.contains(&normalized) {
+        if unique.contains(&normalized) {
+            continue;
+        }
+        if !explicit_request && normalized == source_language {
             continue;
         }
         unique.push(normalized);
@@ -431,6 +435,11 @@ fn build_messages(
         "Source language: {source_language}. Target languages: {}.",
         target_languages.join(", ")
     ));
+    if target_languages.iter().any(|language| language == source_language) {
+        system_parts.push(
+            "If a target language matches the source language, rewrite the text into clean, natural output using only that target language.".to_string(),
+        );
+    }
     system_parts.push(if preserve_paragraphs {
         "Preserve paragraph breaks, list structure, and inline code or identifiers.".to_string()
     } else {
@@ -694,6 +703,42 @@ mod tests {
         assert_eq!(result.translations.len(), 2);
         assert_eq!(result.translations[0].text, "Hello");
         assert_eq!(result.translations[1].text, "你好");
+    }
+
+    #[tokio::test]
+    async fn explicit_same_language_target_is_allowed() {
+        let orchestrator = TranslationOrchestrator::default();
+        let provider = StubProvider::ok("冲");
+
+        let result = orchestrator
+            .execute_with_provider(
+                &provider,
+                &app_config(),
+                &provider_config(),
+                TranslateTextInput {
+                    text: "冲".to_string(),
+                    provider_id: None,
+                    source_language: Some("zh-CN".to_string()),
+                    target_languages: Some(vec!["zh-CN".to_string()]),
+                    user_rules: None,
+                },
+            )
+            .await
+            .expect("translation result");
+
+        assert_eq!(result.target_languages, vec!["zh-CN"]);
+        assert_eq!(result.translations.len(), 1);
+        assert_eq!(result.translations[0].target_language, "zh-CN");
+
+        let request = provider
+            .last_request
+            .lock()
+            .expect("request lock")
+            .clone()
+            .expect("request");
+        assert!(request.messages[0]
+            .content
+            .contains("rewrite the text into clean, natural output using only that target language"));
     }
 
     #[tokio::test]

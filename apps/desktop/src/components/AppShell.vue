@@ -49,11 +49,9 @@
         <span class="text-primary font-weight-bold">C</span>
       </v-avatar>
       <v-toolbar-title class="font-weight-medium">ClipLingo</v-toolbar-title>
-      <v-spacer />
-      <v-btn variant="text" icon="mdi-account-circle-outline" />
     </v-app-bar>
 
-    <v-main>
+    <v-main class="bg-background">
       <v-container fluid class="pa-4 pa-md-6">
         <RouterView />
       </v-container>
@@ -62,11 +60,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { RouterView, useRoute } from "vue-router";
 import { useUiStore } from "@/stores/ui";
 import { useTranslationStore } from "@/stores/translation";
+import { useI18n } from "@/i18n";
 import {
   TRANSLATION_TRIGGER_EVENT,
   type TranslationTriggerPayload,
@@ -76,14 +75,16 @@ import { router } from "@/router";
 const uiStore = useUiStore();
 const translationStore = useTranslationStore();
 const route = useRoute();
+const { t } = useI18n();
 const drawer = ref(true);
 const rail = ref(false);
 let unlistenTrigger: (() => void) | null = null;
 
-const navItems = [
-  { label: "Translate", to: "/", icon: "mdi-translate" },
-  { label: "Settings", to: "/settings", icon: "mdi-cog-outline" },
-];
+const navItems = computed(() => [
+  { label: t("nav.translate"), to: "/", icon: "mdi-translate" },
+  { label: t("nav.settings"), to: "/settings", icon: "mdi-cog-outline" },
+  { label: t("nav.providers"), to: "/providers", icon: "mdi-database-cog-outline" },
+]);
 
 function toggleTheme() {
   const nextTheme = uiStore.resolvedTheme === "dark" ? "light" : "dark";

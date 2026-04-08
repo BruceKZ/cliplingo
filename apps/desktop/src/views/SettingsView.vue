@@ -1,13 +1,13 @@
 <template>
-  <v-card rounded="lg" variant="flat" border>
-    <v-card-title class="text-h5">Settings</v-card-title>
-    <v-card-subtitle>Trigger, provider, routing, and privacy</v-card-subtitle>
-    <v-card-text>
-      <SettingsWorkspace />
-    </v-card-text>
-  </v-card>
+  <section class="settings-view">
+    <h1 class="text-h5 mb-4">{{ t("settings.title") }}</h1>
+    <SettingsWorkspace />
+  </section>
 </template>
 
 <script setup lang="ts">
 import SettingsWorkspace from "@/components/settings/SettingsWorkspace.vue";
+import { useI18n } from "@/i18n";
+
+const { t } = useI18n();
 </script>

@@ -1,14 +1,9 @@
 <template>
   <v-app :theme="uiStore.resolvedTheme">
-    <v-main>
+    <v-main class="bg-background">
       <v-container fluid class="pa-4 pa-md-6">
-        <v-card rounded="lg" variant="flat" border>
-          <v-card-title class="text-h5">ClipLingo Settings</v-card-title>
-          <v-card-subtitle>Unified settings workspace</v-card-subtitle>
-          <v-card-text>
-            <SettingsWorkspace compact />
-          </v-card-text>
-        </v-card>
+        <h1 class="text-h5 mb-4">{{ t("settings.title") }}</h1>
+        <SettingsWorkspace compact />
       </v-container>
     </v-main>
   </v-app>
@@ -16,7 +11,9 @@
 
 <script setup lang="ts">
 import SettingsWorkspace from "@/components/settings/SettingsWorkspace.vue";
+import { useI18n } from "@/i18n";
 import { useUiStore } from "@/stores/ui";
 
 const uiStore = useUiStore();
+const { t } = useI18n();
 </script>

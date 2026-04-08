@@ -21,7 +21,10 @@
       <div class="text-caption text-medium-emphasis mb-2">
         {{ language }} · {{ characterCount }} chars
       </div>
-      <pre class="translation-pre" :class="expanded ? 'translation-pre--expanded' : 'translation-pre--collapsed'">{{ renderedText }}</pre>
+      <pre
+        class="ma-0 rounded border pa-3 whitespace-pre-wrap break-words leading-7"
+        :class="expanded ? '' : 'max-h-44 overflow-hidden'"
+      >{{ renderedText }}</pre>
       <div class="text-caption text-medium-emphasis mt-2">{{ footerText }}</div>
     </v-card-text>
   </v-card>
@@ -50,24 +53,3 @@ const emit = defineEmits<{
 
 const renderedText = computed(() => props.text || "No clipboard content yet.");
 </script>
-
-<style scoped>
-.translation-pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  border: 1px solid rgba(128, 128, 128, 0.25);
-  border-radius: 10px;
-  padding: 12px;
-  line-height: 1.55;
-}
-
-.translation-pre--collapsed {
-  max-height: 180px;
-  overflow: hidden;
-}
-
-.translation-pre--expanded {
-  max-height: none;
-}
-</style>

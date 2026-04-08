@@ -1,6 +1,6 @@
 <template>
   <v-app :theme="uiStore.resolvedTheme">
-    <v-main>
+    <v-main class="bg-background">
       <v-container fluid class="pa-3 fill-height">
         <TranslationPopup />
       </v-container>

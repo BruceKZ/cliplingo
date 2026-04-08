@@ -3,7 +3,7 @@
     <h1 class="text-h5 mb-4">{{ t("nav.providers") }}</h1>
 
     <v-row dense>
-      <v-col cols="12" lg="4">
+      <v-col cols="12">
         <v-card border rounded="lg">
           <v-card-title class="d-flex justify-space-between align-center">
             <span>{{ t("settings.providers") }}</span>
@@ -34,7 +34,7 @@
         </v-card>
       </v-col>
 
-      <v-col cols="12" lg="8">
+      <v-col cols="12">
         <v-card v-if="selectedProvider" border rounded="lg">
           <v-card-title class="d-flex justify-space-between align-center flex-wrap ga-2">
             <span>{{ selectedProvider.name || selectedProvider.id }}</span>

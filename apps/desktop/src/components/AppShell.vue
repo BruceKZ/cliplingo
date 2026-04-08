@@ -53,7 +53,9 @@
 
     <v-main class="bg-background">
       <v-container fluid class="pa-4 pa-md-6">
-        <RouterView />
+        <div class="app-content-shell mx-auto w-100">
+          <RouterView />
+        </div>
       </v-container>
     </v-main>
   </v-app>
@@ -112,3 +114,9 @@ onBeforeUnmount(() => {
   unlistenTrigger?.();
 });
 </script>
+
+<style scoped>
+.app-content-shell {
+  max-width: 920px;
+}
+</style>

@@ -66,7 +66,13 @@ type MessageKey =
   | "settings.statusTesting"
   | "settings.manageProviders"
   | "settings.noProvider"
-  | "settings.statusAt";
+  | "settings.statusAt"
+  | "settings.refreshProviders"
+  | "settings.autoRefreshOff"
+  | "settings.noProvidersYet"
+  | "settings.apiKeySaved"
+  | "settings.replaceApiKey"
+  | "settings.clearApiKey";
 
 const MESSAGES: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
@@ -135,6 +141,12 @@ const MESSAGES: Record<AppLocale, Record<MessageKey, string>> = {
     "settings.manageProviders": "Manage providers",
     "settings.noProvider": "No provider selected.",
     "settings.statusAt": "Last update",
+    "settings.refreshProviders": "Refresh",
+    "settings.autoRefreshOff": "Auto refresh: off",
+    "settings.noProvidersYet": "No providers yet.",
+    "settings.apiKeySaved": "API key saved securely",
+    "settings.replaceApiKey": "Replace API key",
+    "settings.clearApiKey": "Clear saved API key",
   },
   "zh-CN": {
     "nav.translate": "翻译",
@@ -202,6 +214,12 @@ const MESSAGES: Record<AppLocale, Record<MessageKey, string>> = {
     "settings.manageProviders": "管理服务商",
     "settings.noProvider": "未选择服务商。",
     "settings.statusAt": "最近更新",
+    "settings.refreshProviders": "手动刷新",
+    "settings.autoRefreshOff": "自动刷新：关闭",
+    "settings.noProvidersYet": "还没有服务商。",
+    "settings.apiKeySaved": "API Key 已保存",
+    "settings.replaceApiKey": "替换 API Key",
+    "settings.clearApiKey": "清除已保存 API Key",
   },
 };
 

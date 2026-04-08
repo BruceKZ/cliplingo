@@ -2,7 +2,7 @@ mod models;
 mod services;
 mod storage;
 
-use models::config::{AppConfigRecord, ProviderConfigRecord};
+use models::config::{AppConfigRecord, ProviderConfigRecord, ProviderDirectoryRecord};
 use services::{
     clipboard::{read_clipboard_text, read_clipboard_text_with_limits, ClipboardLimits},
     config::{ConfigService, ProviderSecretStatus},
@@ -22,6 +22,10 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
+
+fn to_json<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_string_pretty(value).unwrap_or_else(|_| "<serialize failed>".to_string())
+}
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const SETTINGS_WINDOW_LABEL: &str = "settings";
@@ -168,35 +172,81 @@ async fn read_system_clipboard(
 
 #[tauri::command]
 async fn load_app_config() -> Result<AppConfigRecord, String> {
-    config_service().load().map_err(|error| error.to_string())
+    eprintln!("[tauri] load_app_config:start");
+    let loaded = config_service().load().map_err(|error| error.to_string())?;
+    eprintln!("[tauri] load_app_config:done payload={}", to_json(&loaded));
+    Ok(loaded)
+}
+
+#[tauri::command]
+async fn list_providers() -> Result<ProviderDirectoryRecord, String> {
+    eprintln!("[tauri] list_providers:start");
+    let directory = config_service()
+        .load()
+        .map(|config| config.provider_directory())
+        .map_err(|error| error.to_string())?;
+    eprintln!("[tauri] list_providers:done payload={}", to_json(&directory));
+    Ok(directory)
 }
 
 #[tauri::command]
 async fn save_app_config(config: AppConfigRecord) -> Result<AppConfigRecord, String> {
-    config_service()
+    eprintln!("[tauri] save_app_config:start payload={}", to_json(&config));
+    let saved = config_service()
         .save(config)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    eprintln!("[tauri] save_app_config:done payload={}", to_json(&saved));
+    Ok(saved)
 }
 
 #[tauri::command]
-async fn upsert_provider_config(provider: ProviderConfigRecord) -> Result<AppConfigRecord, String> {
-    config_service()
+async fn upsert_provider_config(
+    provider: ProviderConfigRecord,
+) -> Result<ProviderDirectoryRecord, String> {
+    eprintln!(
+        "[tauri] upsert_provider_config:start provider={}",
+        to_json(&provider)
+    );
+    let directory = config_service()
         .upsert_provider(provider)
-        .map_err(|error| error.to_string())
+        .map(|config| config.provider_directory())
+        .map_err(|error| error.to_string())?;
+    eprintln!(
+        "[tauri] upsert_provider_config:done directory={}",
+        to_json(&directory)
+    );
+    Ok(directory)
 }
 
 #[tauri::command]
-async fn remove_provider_config(provider_id: String) -> Result<AppConfigRecord, String> {
-    config_service()
+async fn remove_provider_config(provider_id: String) -> Result<ProviderDirectoryRecord, String> {
+    eprintln!(
+        "[tauri] remove_provider_config:start provider_id={}",
+        provider_id
+    );
+    let directory = config_service()
         .remove_provider(&provider_id)
-        .map_err(|error| error.to_string())
+        .map(|config| config.provider_directory())
+        .map_err(|error| error.to_string())?;
+    eprintln!(
+        "[tauri] remove_provider_config:done directory={}",
+        to_json(&directory)
+    );
+    Ok(directory)
 }
 
 #[tauri::command]
-async fn set_active_provider(provider_id: Option<String>) -> Result<AppConfigRecord, String> {
-    config_service()
+async fn set_active_provider(provider_id: Option<String>) -> Result<ProviderDirectoryRecord, String> {
+    eprintln!("[tauri] set_active_provider:start provider_id={:?}", provider_id);
+    let directory = config_service()
         .set_active_provider(provider_id)
-        .map_err(|error| error.to_string())
+        .map(|config| config.provider_directory())
+        .map_err(|error| error.to_string())?;
+    eprintln!(
+        "[tauri] set_active_provider:done directory={}",
+        to_json(&directory)
+    );
+    Ok(directory)
 }
 
 #[tauri::command]
@@ -204,23 +254,48 @@ async fn set_provider_api_key(
     provider_id: String,
     api_key: String,
 ) -> Result<ProviderSecretStatus, String> {
-    config_service()
+    eprintln!(
+        "[tauri] set_provider_api_key:start provider_id={} api_key_len={}",
+        provider_id,
+        api_key.chars().count()
+    );
+    let status = config_service()
         .set_provider_secret(&provider_id, &api_key)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    eprintln!("[tauri] set_provider_api_key:done payload={}", to_json(&status));
+    Ok(status)
 }
 
 #[tauri::command]
 async fn get_provider_api_key_status(provider_id: String) -> Result<ProviderSecretStatus, String> {
-    config_service()
+    eprintln!(
+        "[tauri] get_provider_api_key_status:start provider_id={}",
+        provider_id
+    );
+    let status = config_service()
         .get_provider_secret_status(&provider_id)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    eprintln!(
+        "[tauri] get_provider_api_key_status:done payload={}",
+        to_json(&status)
+    );
+    Ok(status)
 }
 
 #[tauri::command]
 async fn delete_provider_api_key(provider_id: String) -> Result<ProviderSecretStatus, String> {
-    config_service()
+    eprintln!(
+        "[tauri] delete_provider_api_key:start provider_id={}",
+        provider_id
+    );
+    let status = config_service()
         .delete_provider_secret(&provider_id)
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    eprintln!(
+        "[tauri] delete_provider_api_key:done payload={}",
+        to_json(&status)
+    );
+    Ok(status)
 }
 
 #[tauri::command]
@@ -245,10 +320,17 @@ async fn analyze_language_routing(
 
 #[tauri::command]
 async fn translate_text(input: TranslateTextInput) -> Result<TranslationExecutionOutput, String> {
+    eprintln!("[tauri] translate_text:start input={}", to_json(&input));
     let config = config_service().load().map_err(|error| error.to_string())?;
     let resolved_provider = config_service()
         .resolve_provider_config(input.provider_id.as_deref())
         .map_err(|error| error.to_string())?;
+    eprintln!(
+        "[tauri] translate_text:resolved_provider provider_id={} provider_name={} has_secret={}",
+        resolved_provider.provider.id,
+        resolved_provider.provider.name,
+        resolved_provider.api_key.is_some()
+    );
     let orchestrator = TranslationOrchestrator::default();
 
     match orchestrator
@@ -256,6 +338,7 @@ async fn translate_text(input: TranslateTextInput) -> Result<TranslationExecutio
         .await
     {
         Ok(output) => {
+            eprintln!("[tauri] translate_text:success output={}", to_json(&output));
             let config = config_service().load().map_err(|error| error.to_string())?;
             let _ = history_repository().append_translation(&config.history, &output);
             let _ = logging_service().log(
@@ -276,6 +359,11 @@ async fn translate_text(input: TranslateTextInput) -> Result<TranslationExecutio
         }
         Err(error) => {
             let safe_output = TranslationExecutionOutput::from_safe_error(&input, &error);
+            eprintln!(
+                "[tauri] translate_text:error error={} safe_output={}",
+                error,
+                to_json(&safe_output)
+            );
             if let Ok(config) = config_service().load() {
                 let _ = logging_service().log(
                     &config.debug,
@@ -394,6 +482,7 @@ pub fn run() {
             toggle_main_window,
             read_system_clipboard,
             load_app_config,
+            list_providers,
             save_app_config,
             upsert_provider_config,
             remove_provider_config,

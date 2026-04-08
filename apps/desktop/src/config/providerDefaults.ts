@@ -5,7 +5,24 @@ import {
   DEFAULT_TIMEOUT_SECS,
   DEFAULT_TOP_P,
 } from "@cliplingo/shared-types";
-import type { ProviderDraft } from "@/stores/settings";
+
+export interface ProviderDraftDefaults {
+  id: string;
+  name: string;
+  kind: "openai-compatible";
+  authScheme: "bearer" | "none";
+  baseUrl: string;
+  path: string;
+  apiKeyDraft: string;
+  organization: string;
+  model: string;
+  temperature: number;
+  topP: number;
+  maxTokens: number;
+  timeoutSecs: number;
+  customHeaders: [];
+  enabled: boolean;
+}
 
 function parseInteger(
   value: string | undefined,
@@ -31,7 +48,7 @@ function parseFloatNumber(
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export function getDefaultProviderDraft(): Partial<ProviderDraft> {
+export function getDefaultProviderDraft(): ProviderDraftDefaults {
   return {
     id: import.meta.env.VITE_DEFAULT_PROVIDER_ID?.trim() || "openai",
     name:

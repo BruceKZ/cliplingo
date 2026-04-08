@@ -205,6 +205,13 @@ pub struct AppConfigRecord {
     pub debug: DebugConfigRecord,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDirectoryRecord {
+    pub providers: Vec<ProviderConfigRecord>,
+    pub active_provider_id: Option<String>,
+}
+
 impl Default for AppConfigRecord {
     fn default() -> Self {
         Self {
@@ -232,6 +239,13 @@ impl AppConfigRecord {
         });
 
         self
+    }
+
+    pub fn provider_directory(&self) -> ProviderDirectoryRecord {
+        ProviderDirectoryRecord {
+            providers: self.providers.clone(),
+            active_provider_id: self.active_provider_id.clone(),
+        }
     }
 }
 

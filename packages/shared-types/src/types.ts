@@ -100,6 +100,11 @@ export interface ProviderConfig {
   enabled: boolean;
 }
 
+export interface ProviderDirectory {
+  providers: ProviderConfig[];
+  activeProviderId: string | null;
+}
+
 export interface UiConfig {
   themeMode: ThemeMode;
   showTrayIcon: boolean;

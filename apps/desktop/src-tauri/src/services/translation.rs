@@ -28,7 +28,7 @@ const MULTI_TARGET_SCHEMA_HINT: &str = concat!(
     "Return every requested target language exactly once and nothing else."
 );
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranslateTextInput {
     pub text: String,

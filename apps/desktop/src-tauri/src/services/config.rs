@@ -71,13 +71,35 @@ where
 
     pub fn load(&self) -> Result<AppConfigRecord, ConfigServiceError> {
         let path = self.path_provider.config_path()?;
-        self.load_from_path(&path)
+        eprintln!(
+            "[config] load:start path={} exists={}",
+            path.display(),
+            path.exists()
+        );
+        let loaded = self.load_from_path(&path)?;
+        eprintln!(
+            "[config] load:done active_provider_id={:?} providers={}",
+            loaded.active_provider_id,
+            loaded.providers.len()
+        );
+        Ok(loaded)
     }
 
     pub fn save(&self, config: AppConfigRecord) -> Result<AppConfigRecord, ConfigServiceError> {
         let normalized = config.normalize();
         let path = self.path_provider.config_path()?;
+        eprintln!(
+            "[config] save:start path={} payload={}",
+            path.display(),
+            serde_json::to_string_pretty(&normalized)
+                .unwrap_or_else(|_| "<serialize failed>".to_string())
+        );
         self.write_config(&path, &normalized)?;
+        eprintln!(
+            "[config] save:done active_provider_id={:?} providers={}",
+            normalized.active_provider_id,
+            normalized.providers.len()
+        );
         Ok(normalized)
     }
 
@@ -89,6 +111,13 @@ where
         if provider_id.is_empty() {
             return Err(ConfigServiceError::InvalidProviderId);
         }
+
+        eprintln!(
+            "[config] upsert_provider:start provider_id={} payload={}",
+            provider_id,
+            serde_json::to_string_pretty(&provider)
+                .unwrap_or_else(|_| "<serialize failed>".to_string())
+        );
 
         let mut config = self.load()?;
         if let Some(existing) = config
@@ -103,13 +132,21 @@ where
             config.providers.push(provider);
         }
 
-        self.save(config)
+        let saved = self.save(config)?;
+        eprintln!(
+            "[config] upsert_provider:done provider_id={} active_provider_id={:?} providers={}",
+            provider_id,
+            saved.active_provider_id,
+            saved.providers.len()
+        );
+        Ok(saved)
     }
 
     pub fn remove_provider(
         &self,
         provider_id: &str,
     ) -> Result<AppConfigRecord, ConfigServiceError> {
+        eprintln!("[config] remove_provider:start provider_id={provider_id}");
         let mut config = self.load()?;
         if let Some(position) = config
             .providers
@@ -125,7 +162,14 @@ where
                 config.active_provider_id = None;
             }
 
-            self.save(config)
+            let saved = self.save(config)?;
+            eprintln!(
+                "[config] remove_provider:done provider_id={} active_provider_id={:?} providers={}",
+                provider_id,
+                saved.active_provider_id,
+                saved.providers.len()
+            );
+            Ok(saved)
         } else {
             Err(ConfigServiceError::ProviderNotFound(
                 provider_id.to_string(),
@@ -137,6 +181,10 @@ where
         &self,
         provider_id: Option<String>,
     ) -> Result<AppConfigRecord, ConfigServiceError> {
+        eprintln!(
+            "[config] set_active_provider:start provider_id={:?}",
+            provider_id
+        );
         let mut config = self.load()?;
 
         if let Some(provider_id) = provider_id {
@@ -152,7 +200,12 @@ where
             config.active_provider_id = None;
         }
 
-        self.save(config)
+        let saved = self.save(config)?;
+        eprintln!(
+            "[config] set_active_provider:done active_provider_id={:?}",
+            saved.active_provider_id
+        );
+        Ok(saved)
     }
 
     pub fn set_provider_secret(
@@ -160,6 +213,11 @@ where
         provider_id: &str,
         api_key: &str,
     ) -> Result<ProviderSecretStatus, ConfigServiceError> {
+        eprintln!(
+            "[config] set_provider_secret:start provider_id={} api_key_len={}",
+            provider_id,
+            api_key.chars().count()
+        );
         let mut config = self.load()?;
         let provider = config
             .providers
@@ -175,16 +233,19 @@ where
         provider.api_key_ref = Some(secret_ref);
         self.save(config)?;
 
-        Ok(ProviderSecretStatus {
+        let status = ProviderSecretStatus {
             provider_id: provider_id.to_string(),
             has_secret: true,
-        })
+        };
+        eprintln!("[config] set_provider_secret:done provider_id={provider_id} has_secret=true");
+        Ok(status)
     }
 
     pub fn get_provider_secret_status(
         &self,
         provider_id: &str,
     ) -> Result<ProviderSecretStatus, ConfigServiceError> {
+        eprintln!("[config] get_provider_secret_status:start provider_id={provider_id}");
         let config = self.load()?;
         let provider = config
             .providers
@@ -198,16 +259,23 @@ where
             false
         };
 
-        Ok(ProviderSecretStatus {
+        let status = ProviderSecretStatus {
             provider_id: provider_id.to_string(),
             has_secret,
-        })
+        };
+        eprintln!(
+            "[config] get_provider_secret_status:done provider_id={} has_secret={}",
+            provider_id,
+            status.has_secret
+        );
+        Ok(status)
     }
 
     pub fn delete_provider_secret(
         &self,
         provider_id: &str,
     ) -> Result<ProviderSecretStatus, ConfigServiceError> {
+        eprintln!("[config] delete_provider_secret:start provider_id={provider_id}");
         let mut config = self.load()?;
         let provider = config
             .providers
@@ -222,16 +290,22 @@ where
         provider.api_key_ref = None;
         self.save(config)?;
 
-        Ok(ProviderSecretStatus {
+        let status = ProviderSecretStatus {
             provider_id: provider_id.to_string(),
             has_secret: false,
-        })
+        };
+        eprintln!("[config] delete_provider_secret:done provider_id={provider_id}");
+        Ok(status)
     }
 
     pub fn resolve_provider_config(
         &self,
         provider_id: Option<&str>,
     ) -> Result<ResolvedProviderConfig, ConfigServiceError> {
+        eprintln!(
+            "[config] resolve_provider_config:start requested_provider_id={:?}",
+            provider_id
+        );
         let config = self.load()?;
         let resolved_provider_id = provider_id
             .map(str::trim)
@@ -253,6 +327,12 @@ where
             .map(|secret_ref| self.secret_store.get_secret(secret_ref))
             .transpose()?
             .flatten();
+
+        eprintln!(
+            "[config] resolve_provider_config:done resolved_provider_id={} has_secret={}",
+            provider.id,
+            api_key.is_some()
+        );
 
         Ok(ResolvedProviderConfig { provider, api_key })
     }

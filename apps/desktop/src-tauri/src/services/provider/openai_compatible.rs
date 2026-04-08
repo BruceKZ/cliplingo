@@ -51,6 +51,13 @@ impl OpenAiCompatibleProvider {
         let provider_id = normalized_provider_id(&config.id)?;
         let provider_name = normalized_name(&config.name, &provider_id);
         let endpoint = build_endpoint(&provider_id, &config.base_url, &config.path)?;
+        eprintln!(
+            "[provider] openai_compatible:init provider_id={} base_url={} path={} endpoint={}",
+            provider_id,
+            config.base_url,
+            config.path,
+            endpoint
+        );
         let custom_headers = build_custom_headers(&provider_id, &config.custom_headers)?;
         let default_model = normalized_optional_string(&config.model);
         let default_temperature = validate_temperature(&provider_id, config.temperature)?;
@@ -404,16 +411,20 @@ fn build_endpoint(provider_id: &str, base_url: &str, path: &str) -> Result<Url, 
     } else {
         path.trim()
     };
-    let endpoint = parsed_base
-        .join(normalized_path.trim_start_matches('/'))
-        .map_err(|error| {
-            provider_error(
-                provider_id,
-                ProviderErrorCode::InvalidEndpointPath,
-                "endpoint path is invalid",
-            )
-            .with_details(error.to_string())
-        })?;
+    let mut endpoint = parsed_base.clone();
+    let base_path = parsed_base.path().trim_end_matches('/');
+    let request_path = normalized_path.trim();
+    let combined_path = if base_path.is_empty() || base_path == "/" {
+        format!("/{}", request_path.trim_start_matches('/'))
+    } else {
+        format!(
+            "{}/{}",
+            base_path,
+            request_path.trim_start_matches('/')
+        )
+    };
+
+    endpoint.set_path(&combined_path);
 
     Ok(endpoint)
 }
@@ -715,6 +726,18 @@ mod tests {
         let error = OpenAiCompatibleProvider::try_from_config(config, Some("sk-test".to_string()))
             .expect_err("query string should be rejected");
         assert_eq!(error.code, ProviderErrorCode::InvalidBaseUrl);
+    }
+
+    #[test]
+    fn build_endpoint_preserves_base_url_path_prefix() {
+        let endpoint = build_endpoint(
+            "openai",
+            "https://api.openai.com/v1",
+            "/chat/completions",
+        )
+        .expect("endpoint");
+
+        assert_eq!(endpoint.as_str(), "https://api.openai.com/v1/chat/completions");
     }
 
     #[test]

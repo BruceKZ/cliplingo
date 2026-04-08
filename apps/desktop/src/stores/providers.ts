@@ -142,6 +142,7 @@ function normalizeDirectory(
       apiKeyDraft: preservedDrafts.get(provider.id) ?? "",
       organization: provider.organization ?? "",
       persistedId: provider.id,
+      hasSecret: Boolean(provider.apiKeyRef),
     }),
   );
 }
@@ -215,24 +216,6 @@ export const useProvidersStore = defineStore("providers", () => {
     }
   }
 
-  async function refreshSecretStatus(providerId: string) {
-    const provider = providers.find((entry) => entry.id === providerId);
-    if (!provider) {
-      return;
-    }
-
-    if (!provider.persistedId) {
-      provider.hasSecret = provider.apiKeyDraft.trim().length > 0;
-      return;
-    }
-
-    const status = await invokeWithTimeout<{ providerId: string; hasSecret: boolean }>(
-      "get_provider_api_key_status",
-      { providerId: provider.persistedId },
-    );
-    provider.hasSecret = status.hasSecret;
-  }
-
   async function clearProviderSecret(providerId: string) {
     const provider = providers.find((entry) => entry.id === providerId);
     if (!provider) {
@@ -243,7 +226,7 @@ export const useProvidersStore = defineStore("providers", () => {
 
     if (!provider.persistedId) {
       provider.hasSecret = false;
-      setStatus(statusLine, "success", `Cleared unsaved API key for ${providerId}.`);
+      setStatus(statusLine, "success", "API key cleared.");
       return;
     }
 
@@ -251,7 +234,8 @@ export const useProvidersStore = defineStore("providers", () => {
       providerId: provider.persistedId,
     });
     provider.hasSecret = false;
-    setStatus(statusLine, "success", `Cleared saved API key for ${providerId}.`);
+    provider.apiKeyRef = null;
+    setStatus(statusLine, "success", "Saved API key cleared.");
   }
 
   async function refresh(force = false) {
@@ -265,7 +249,6 @@ export const useProvidersStore = defineStore("providers", () => {
     try {
       const directory = await invokeWithTimeout<ProviderDirectory>("list_providers");
       applyDirectory(directory);
-      await Promise.all(providers.map((provider) => refreshSecretStatus(provider.id)));
       initialized.value = true;
       setStatus(statusLine, "success", "Providers refreshed.");
     } catch (cause) {
@@ -285,7 +268,6 @@ export const useProvidersStore = defineStore("providers", () => {
     );
     const directory = await invokeWithTimeout<ProviderDirectory>("list_providers");
     applyDirectory(directory, { preservedDrafts, selectedId });
-    await Promise.all(providers.map((provider) => refreshSecretStatus(provider.id)));
   }
 
   function addProvider() {
@@ -348,7 +330,6 @@ export const useProvidersStore = defineStore("providers", () => {
       providerId: provider.persistedId,
     });
     applyDirectory(directory, { selectedId: nextSelection });
-    await Promise.all(providers.map((entry) => refreshSecretStatus(entry.id)));
     setStatus(statusLine, "success", "Provider removed.");
   }
 
@@ -363,7 +344,6 @@ export const useProvidersStore = defineStore("providers", () => {
       providerId,
     });
     applyDirectory(directory, { selectedId: providerId });
-    await Promise.all(providers.map((provider) => refreshSecretStatus(provider.id)));
     setStatus(statusLine, "success", "Active provider updated.");
   }
 
@@ -472,10 +452,15 @@ export const useProvidersStore = defineStore("providers", () => {
         });
       }
 
-      await refreshSecretStatus(nextId);
       const savedProvider = providers.find((entry) => entry.id === nextId);
-      if (savedProvider && !options.preserveApiKeyDraft) {
-        savedProvider.apiKeyDraft = "";
+      if (savedProvider) {
+        savedProvider.hasSecret =
+          savedProvider.authScheme === "bearer"
+            ? Boolean(nextApiKey || savedProvider.apiKeyRef)
+            : false;
+        if (!options.preserveApiKeyDraft) {
+          savedProvider.apiKeyDraft = "";
+        }
       }
 
       persistState.value = "saved";

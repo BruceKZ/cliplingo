@@ -23,7 +23,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
 fn to_json<T: serde::Serialize>(value: &T) -> String {
@@ -77,6 +77,12 @@ fn reveal_window(window: &WebviewWindow) -> tauri::Result<()> {
 
     window.set_focus()?;
     Ok(())
+}
+
+fn handle_reopen(app: &AppHandle) {
+    if let Err(error) = present_main_window(app) {
+        eprintln!("[tauri] reopen:failed error={error}");
+    }
 }
 
 fn ensure_window<F>(app: &AppHandle, label: &str, create: F) -> tauri::Result<WebviewWindow>
@@ -468,7 +474,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
@@ -509,6 +515,14 @@ pub fn run() {
             clear_translation_history,
             trigger_translation_from_fallback_shortcut
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { .. } = event {
+            eprintln!("[tauri] app:reopen");
+            handle_reopen(app);
+        }
+    });
 }

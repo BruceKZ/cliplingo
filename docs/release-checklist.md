@@ -1,5 +1,20 @@
 # ClipLingo Release Checklist
 
+## GitHub Release automation
+
+- `Desktop CI` validates the desktop app and uploads workflow artifacts only. It does not create a GitHub Release.
+- `Desktop Release` publishes a GitHub Release and uploads macOS and Windows bundles when you push a version tag such as `v0.1.0`.
+- `apps/desktop/package.json` and `apps/desktop/src-tauri/tauri.conf.json` must keep the same version. The release workflow rejects mismatches.
+- `workflow_dispatch` is also available for manual publishing from Actions. It uses the version committed in the selected ref and creates or updates the matching `v<version>` release.
+
+## Release steps
+
+1. Update the version in `apps/desktop/package.json`.
+2. Update the same version in `apps/desktop/src-tauri/tauri.conf.json`.
+3. Merge the release commit to `main`.
+4. Create and push a tag that exactly matches the app version, for example `v0.1.0`.
+5. Wait for the `Desktop Release` workflow to finish, then verify the generated GitHub Release assets.
+
 ## Automated verification
 
 - Run `./scripts/verify-release.sh`

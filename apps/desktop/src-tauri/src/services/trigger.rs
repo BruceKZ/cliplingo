@@ -4,6 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(target_os = "macos")]
+use core_foundation::runloop::CFRunLoop;
+#[cfg(target_os = "macos")]
+use core_graphics::event::{
+    CGEventFlags, CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement,
+    CGEventType, CallbackResult, EventField, KeyCode,
+};
+#[cfg(not(target_os = "macos"))]
 use rdev::{listen, Event, EventType, Key};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -80,12 +88,14 @@ impl CopyTriggerStateMachine {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
 #[derive(Debug, Default, Clone, Copy)]
 struct ModifierState {
     control_pressed: bool,
     meta_pressed: bool,
 }
 
+#[cfg(not(target_os = "macos"))]
 impl ModifierState {
     fn apply_key_press(&mut self, key: Key) {
         match key {
@@ -187,6 +197,7 @@ fn register_fallback_shortcut(app: &AppHandle, shortcut: &str) -> Result<(), Tri
     .map_err(|error: tauri::Error| TriggerServiceError::ShortcutRegistration(error.to_string()))
 }
 
+#[cfg(not(target_os = "macos"))]
 fn spawn_double_copy_listener(app: AppHandle, double_copy_window_ms: u64) {
     let state_machine = Arc::new(Mutex::new(CopyTriggerStateMachine::new(
         Duration::from_millis(normalized_window_ms(double_copy_window_ms)),
@@ -205,6 +216,63 @@ fn spawn_double_copy_listener(app: AppHandle, double_copy_window_ms: u64) {
     });
 }
 
+#[cfg(target_os = "macos")]
+fn spawn_double_copy_listener(app: AppHandle, double_copy_window_ms: u64) {
+    let state_machine = Arc::new(Mutex::new(CopyTriggerStateMachine::new(
+        Duration::from_millis(normalized_window_ms(double_copy_window_ms)),
+    )));
+
+    thread::spawn(move || {
+        if let Err(error) = run_macos_double_copy_listener(app, state_machine) {
+            eprintln!("double-copy listener unavailable: {error}");
+        }
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn run_macos_double_copy_listener(
+    app: AppHandle,
+    state_machine: Arc<Mutex<CopyTriggerStateMachine>>,
+) -> Result<(), String> {
+    CGEventTap::with_enabled(
+        CGEventTapLocation::HID,
+        CGEventTapPlacement::HeadInsertEventTap,
+        CGEventTapOptions::ListenOnly,
+        vec![CGEventType::KeyDown],
+        move |_proxy, _event_type, event| {
+            let keycode = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE) as u16;
+            if keycode != KeyCode::ANSI_C {
+                return CallbackResult::Keep;
+            }
+
+            let modifier_flags = event.get_flags();
+            let copy_modifier_active = modifier_flags
+                .intersects(CGEventFlags::CGEventFlagCommand | CGEventFlags::CGEventFlagControl);
+            if !copy_modifier_active {
+                return CallbackResult::Keep;
+            }
+
+            let is_repeat =
+                event.get_integer_value_field(EventField::KEYBOARD_EVENT_AUTOREPEAT) != 0;
+            if is_repeat {
+                return CallbackResult::Keep;
+            }
+
+            let mut trigger_state = state_machine.lock().expect("trigger state lock");
+            if trigger_state.register_copy(Instant::now()) {
+                let _ = dispatch_translation_trigger(&app, TriggerSource::DoubleCopy);
+            }
+
+            CallbackResult::Keep
+        },
+        CFRunLoop::run_current,
+    )
+    .map_err(|_| {
+        "failed to install macOS event tap (check Input Monitoring permission)".to_string()
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
 fn handle_global_event(
     app: &AppHandle,
     state_machine: &Arc<Mutex<CopyTriggerStateMachine>>,
@@ -280,6 +348,7 @@ mod tests {
         assert!(machine.register_copy(start + Duration::from_millis(850)));
     }
 
+    #[cfg(not(target_os = "macos"))]
     #[test]
     fn modifier_state_tracks_copy_modifiers() {
         let mut modifiers = ModifierState::default();

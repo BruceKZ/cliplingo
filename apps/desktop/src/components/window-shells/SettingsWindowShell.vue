@@ -1,31 +1,22 @@
 <template>
-  <main class="min-h-screen bg-app-bg px-4 py-4 text-app-text">
-    <section
-      class="mx-auto flex min-h-[24rem] max-w-6xl flex-col rounded-3xl border border-app-line bg-app-panel p-6 shadow-sm"
-    >
-      <div class="space-y-2">
-        <p
-          class="text-xs font-semibold uppercase tracking-[0.24em] text-app-muted"
-        >
-          Settings Window
-        </p>
-        <h1 class="text-2xl font-semibold tracking-tight">
-          ClipLingo settings
-        </h1>
-        <p class="text-sm leading-7 text-app-muted">
-          Trigger, provider, language, history, and privacy controls stay in a
-          single workspace so the route-based page and the dedicated window stay
-          aligned.
-        </p>
-      </div>
-
-      <div class="mt-6">
-        <SettingsWorkspace compact />
-      </div>
-    </section>
-  </main>
+  <v-app :theme="uiStore.resolvedTheme">
+    <v-main>
+      <v-container fluid class="pa-4 pa-md-6">
+        <v-card rounded="lg" variant="flat" border>
+          <v-card-title class="text-h5">ClipLingo Settings</v-card-title>
+          <v-card-subtitle>Unified settings workspace</v-card-subtitle>
+          <v-card-text>
+            <SettingsWorkspace compact />
+          </v-card-text>
+        </v-card>
+      </v-container>
+    </v-main>
+  </v-app>
 </template>
 
 <script setup lang="ts">
 import SettingsWorkspace from "@/components/settings/SettingsWorkspace.vue";
+import { useUiStore } from "@/stores/ui";
+
+const uiStore = useUiStore();
 </script>

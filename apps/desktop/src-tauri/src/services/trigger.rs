@@ -14,14 +14,14 @@ use core_graphics::event::{
 #[cfg(not(target_os = "macos"))]
 use rdev::{listen, Event, EventType, Key};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{
     Builder as GlobalShortcutBuilder, Code, Modifiers, Shortcut, ShortcutState,
 };
 
 use crate::{
     services::clipboard::{read_clipboard_text, ClipboardServiceError, ClipboardText},
-    MAIN_WINDOW_LABEL, POPUP_WINDOW_LABEL,
+    MAIN_WINDOW_LABEL,
 };
 
 pub const TRANSLATION_TRIGGER_EVENT: &str = "trigger:translation-requested";
@@ -136,34 +136,23 @@ pub fn dispatch_translation_trigger(
 ) -> Result<TriggerDispatchPayload, TriggerServiceError> {
     let clipboard = read_clipboard_text(app.clone()).map_err(TriggerServiceError::Clipboard)?;
     let payload = build_payload(source, clipboard);
+    println!(
+        "[trigger] dispatch requested source={:?} chars={}",
+        source, payload.character_count
+    );
 
-    let popup_window = if let Some(window) = app.get_webview_window(POPUP_WINDOW_LABEL) {
-        window
+    if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        let _ = main_window.unminimize();
+        let _ = main_window.show();
+        let _ = main_window.set_focus();
+        println!("[trigger] main window focused for translation");
     } else {
-        WebviewWindowBuilder::new(
-            app,
-            POPUP_WINDOW_LABEL,
-            WebviewUrl::App("index.html".into()),
-        )
-        .title("ClipLingo Translation")
-        .inner_size(560.0, 380.0)
-        .min_inner_size(420.0, 280.0)
-        .decorations(false)
-        .always_on_top(true)
-        .skip_taskbar(true)
-        .visible(false)
-        .build()
-        .map_err(|error| TriggerServiceError::ShortcutRegistration(error.to_string()))?
-    };
-    let _ = popup_window.show();
-    let _ = popup_window.set_focus();
+        println!("[trigger] main window not found, emitting global event only");
+    }
 
     app.emit(TRANSLATION_TRIGGER_EVENT, &payload)
         .map_err(|error| TriggerServiceError::ShortcutRegistration(error.to_string()))?;
-
-    if let Some(main_window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        let _ = main_window.emit(TRANSLATION_TRIGGER_EVENT, &payload);
-    }
+    println!("[trigger] event emitted: {TRANSLATION_TRIGGER_EVENT}");
 
     Ok(payload)
 }
@@ -188,6 +177,7 @@ fn register_fallback_shortcut(app: &AppHandle, shortcut: &str) -> Result<(), Tri
                 if event.state() == ShortcutState::Pressed
                     && triggered_shortcut == &fallback_shortcut
                 {
+                    println!("[trigger] fallback shortcut pressed");
                     let _ =
                         dispatch_translation_trigger(&app_handle, TriggerSource::FallbackShortcut);
                 }
@@ -260,6 +250,7 @@ fn run_macos_double_copy_listener(
 
             let mut trigger_state = state_machine.lock().expect("trigger state lock");
             if trigger_state.register_copy(Instant::now()) {
+                println!("[trigger] double-copy detected (macOS event tap)");
                 let _ = dispatch_translation_trigger(&app, TriggerSource::DoubleCopy);
             }
 
@@ -287,6 +278,7 @@ fn handle_global_event(
             if key == Key::KeyC && modifier_state.copy_modifier_active() {
                 let mut trigger_state = state_machine.lock().expect("trigger state lock");
                 if trigger_state.register_copy(Instant::now()) {
+                    println!("[trigger] double-copy detected (global key listener)");
                     let _ = dispatch_translation_trigger(app, TriggerSource::DoubleCopy);
                 }
             }

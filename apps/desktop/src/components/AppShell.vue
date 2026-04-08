@@ -1,64 +1,113 @@
 <template>
-  <div class="min-h-screen bg-app-bg text-app-text">
-    <div
-      class="mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 lg:px-10"
+  <v-app :theme="uiStore.resolvedTheme">
+    <v-navigation-drawer
+      v-model="drawer"
+      :rail="rail"
+      permanent
+      border="end"
+      :width="248"
+      :rail-width="76"
     >
-      <header
-        class="flex flex-col gap-4 rounded-3xl border border-app-line bg-app-panel px-5 py-4 md:flex-row md:items-center md:justify-between"
-      >
-        <div>
-          <p
-            class="text-xs font-semibold uppercase tracking-[0.24em] text-app-muted"
-          >
-            Desktop Translator
-          </p>
-          <h1 class="mt-1 text-xl font-semibold">ClipLingo</h1>
-        </div>
+      <div class="px-4 pt-6 pb-2 text-subtitle-1 text-medium-emphasis">Application</div>
+      <v-list nav density="comfortable" class="pt-0">
+        <v-list-item
+          v-for="item in navItems"
+          :key="item.to"
+          :to="item.to"
+          :active="route.path === item.to"
+          rounded="lg"
+          class="mx-2 mb-2"
+          color="primary"
+        >
+          <template #prepend>
+            <v-icon :icon="item.icon" />
+          </template>
+          <v-list-item-title>{{ item.label }}</v-list-item-title>
+        </v-list-item>
+      </v-list>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <nav class="flex flex-wrap gap-2">
-            <RouterLink
-              v-for="item in navItems"
-              :key="item.to"
-              :to="item.to"
-              class="rounded-full border border-app-line px-3 py-2 text-sm text-app-muted transition-colors hover:border-app-accent hover:text-app-text"
-              active-class="border-app-accent bg-app-accent-soft text-app-text"
-            >
-              {{ item.label }}
-            </RouterLink>
-          </nav>
-
-          <button
-            type="button"
-            class="rounded-full border border-app-line px-3 py-2 text-sm text-app-muted transition-colors hover:border-app-accent hover:text-app-text"
+      <template #append>
+        <div class="pa-3 d-flex flex-column ga-2">
+          <v-btn
+            block
+            variant="tonal"
+            color="primary"
             @click="toggleTheme"
           >
             Theme: {{ uiStore.resolvedTheme }}
-          </button>
+          </v-btn>
+          <v-btn block variant="text" @click="rail = !rail">
+            {{ rail ? "Expand" : "Collapse" }}
+          </v-btn>
         </div>
-      </header>
+      </template>
+    </v-navigation-drawer>
 
-      <main class="flex-1 py-6">
+    <v-app-bar color="primary" density="comfortable" flat>
+      <v-btn icon="mdi-menu" variant="text" @click="drawer = !drawer" />
+      <v-avatar size="34" class="mr-3" color="white">
+        <span class="text-primary font-weight-bold">C</span>
+      </v-avatar>
+      <v-toolbar-title class="font-weight-medium">ClipLingo</v-toolbar-title>
+      <v-spacer />
+      <v-btn variant="text" icon="mdi-account-circle-outline" />
+    </v-app-bar>
+
+    <v-main>
+      <v-container fluid class="pa-4 pa-md-6">
         <RouterView />
-      </main>
-    </div>
-  </div>
+      </v-container>
+    </v-main>
+  </v-app>
 </template>
 
 <script setup lang="ts">
-import { RouterLink, RouterView } from "vue-router";
+import { onBeforeUnmount, onMounted, ref } from "vue";
+import { listen } from "@tauri-apps/api/event";
+import { RouterView, useRoute } from "vue-router";
 import { useUiStore } from "@/stores/ui";
+import { useTranslationStore } from "@/stores/translation";
+import {
+  TRANSLATION_TRIGGER_EVENT,
+  type TranslationTriggerPayload,
+} from "@/components/translation/types";
+import { router } from "@/router";
 
 const uiStore = useUiStore();
+const translationStore = useTranslationStore();
+const route = useRoute();
+const drawer = ref(true);
+const rail = ref(false);
+let unlistenTrigger: (() => void) | null = null;
 
 const navItems = [
-  { label: "Overview", to: "/" },
-  { label: "Settings", to: "/settings" },
-  { label: "History", to: "/history" },
+  { label: "Translate", to: "/", icon: "mdi-translate" },
+  { label: "Settings", to: "/settings", icon: "mdi-cog-outline" },
 ];
 
 function toggleTheme() {
   const nextTheme = uiStore.resolvedTheme === "dark" ? "light" : "dark";
   uiStore.applyTheme(nextTheme);
 }
+
+onMounted(async () => {
+  unlistenTrigger = await listen<TranslationTriggerPayload>(
+    TRANSLATION_TRIGGER_EVENT,
+    async (event) => {
+      console.info(
+        "[trigger] frontend received translation event",
+        event.payload.source,
+        event.payload.characterCount,
+      );
+      if (router.currentRoute.value.path !== "/") {
+        await router.push("/");
+      }
+      await translationStore.handleTrigger(event.payload);
+    },
+  );
+});
+
+onBeforeUnmount(() => {
+  unlistenTrigger?.();
+});
 </script>

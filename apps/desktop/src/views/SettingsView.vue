@@ -1,20 +1,11 @@
 <template>
-  <section class="space-y-6">
-    <header class="space-y-2">
-      <p class="text-sm font-medium uppercase tracking-[0.24em] text-app-muted">
-        Settings
-      </p>
-      <h1 class="text-3xl font-semibold tracking-tight text-app-text">
-        Configure trigger behavior, providers, routing, and privacy.
-      </h1>
-      <p class="max-w-3xl text-sm leading-7 text-app-muted">
-        This draft surface keeps editing local and immediate. The same workspace
-        is reused by the dedicated settings window so behavior stays consistent.
-      </p>
-    </header>
-
-    <SettingsWorkspace />
-  </section>
+  <v-card rounded="lg" variant="flat" border>
+    <v-card-title class="text-h5">Settings</v-card-title>
+    <v-card-subtitle>Trigger, provider, routing, and privacy</v-card-subtitle>
+    <v-card-text>
+      <SettingsWorkspace />
+    </v-card-text>
+  </v-card>
 </template>
 
 <script setup lang="ts">

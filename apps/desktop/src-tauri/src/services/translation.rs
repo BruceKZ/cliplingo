@@ -64,6 +64,7 @@ pub struct TranslationExecutionOutput {
     pub provider_id: String,
     pub provider_name: String,
     pub model: String,
+    pub server_time_ms: Option<u64>,
     pub latency_ms: u64,
     pub fallback_used: bool,
     pub error: Option<TranslationErrorOutput>,
@@ -93,6 +94,7 @@ impl TranslationExecutionOutput {
             provider_id: input.provider_id.clone().unwrap_or_default(),
             provider_name: String::new(),
             model: String::new(),
+            server_time_ms: None,
             latency_ms: 0,
             fallback_used: false,
             error: Some(error.to_safe_output()),
@@ -200,6 +202,7 @@ impl TranslationOrchestrator {
             provider_id: provider_response.provider_id,
             provider_name: provider_response.provider_name,
             model: provider_response.model,
+            server_time_ms: provider_response.server_time_ms,
             latency_ms: provider_response.latency_ms,
             fallback_used: language_analysis.fallback_used,
             error: None,
@@ -395,6 +398,7 @@ fn resolve_target_languages(
     routed: Vec<String>,
     source_language: &str,
 ) -> Result<Vec<String>, TranslationOrchestratorError> {
+    let explicit_request = requested.is_some();
     let candidates = requested.unwrap_or(routed);
     let mut unique = Vec::new();
 
@@ -402,7 +406,10 @@ fn resolve_target_languages(
         let Some(normalized) = normalized_language_code(&value) else {
             continue;
         };
-        if normalized == source_language || unique.contains(&normalized) {
+        if unique.contains(&normalized) {
+            continue;
+        }
+        if !explicit_request && normalized == source_language {
             continue;
         }
         unique.push(normalized);
@@ -428,6 +435,11 @@ fn build_messages(
         "Source language: {source_language}. Target languages: {}.",
         target_languages.join(", ")
     ));
+    if target_languages.iter().any(|language| language == source_language) {
+        system_parts.push(
+            "If a target language matches the source language, rewrite the text into clean, natural output using only that target language.".to_string(),
+        );
+    }
     system_parts.push(if preserve_paragraphs {
         "Preserve paragraph breaks, list structure, and inline code or identifiers.".to_string()
     } else {
@@ -588,6 +600,7 @@ mod tests {
                     provider_id: "provider-default".to_string(),
                     provider_name: "Mock Provider".to_string(),
                     model: "mock-model".to_string(),
+                    server_time_ms: Some(1),
                     content: content.to_string(),
                     latency_ms: 42,
                     finish_reason: Some("stop".to_string()),
@@ -634,6 +647,7 @@ mod tests {
             timeout_secs: 30,
             custom_headers: Vec::new(),
             enabled: true,
+            verified_at: Some(1),
         }
     }
 
@@ -689,6 +703,42 @@ mod tests {
         assert_eq!(result.translations.len(), 2);
         assert_eq!(result.translations[0].text, "Hello");
         assert_eq!(result.translations[1].text, "你好");
+    }
+
+    #[tokio::test]
+    async fn explicit_same_language_target_is_allowed() {
+        let orchestrator = TranslationOrchestrator::default();
+        let provider = StubProvider::ok("冲");
+
+        let result = orchestrator
+            .execute_with_provider(
+                &provider,
+                &app_config(),
+                &provider_config(),
+                TranslateTextInput {
+                    text: "冲".to_string(),
+                    provider_id: None,
+                    source_language: Some("zh-CN".to_string()),
+                    target_languages: Some(vec!["zh-CN".to_string()]),
+                    user_rules: None,
+                },
+            )
+            .await
+            .expect("translation result");
+
+        assert_eq!(result.target_languages, vec!["zh-CN"]);
+        assert_eq!(result.translations.len(), 1);
+        assert_eq!(result.translations[0].target_language, "zh-CN");
+
+        let request = provider
+            .last_request
+            .lock()
+            .expect("request lock")
+            .clone()
+            .expect("request");
+        assert!(request.messages[0]
+            .content
+            .contains("rewrite the text into clean, natural output using only that target language"));
     }
 
     #[tokio::test]

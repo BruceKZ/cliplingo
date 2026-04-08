@@ -230,6 +230,7 @@ mod tests {
             provider_id: "provider-default".to_string(),
             provider_name: "Mock".to_string(),
             model: "gpt-test".to_string(),
+            server_time_ms: Some(1),
             latency_ms: 10,
             fallback_used: false,
             error: None,
